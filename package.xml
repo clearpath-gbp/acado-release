@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<package>
+  <name>acado</name>
+  <version>1.2.1</version>
+  <description>ACADO Toolkit</description>
+  <author>Milan Vukov</author>
+  <author>Rien Quirynen</author>
+  <license>LGPL3</license>
+  <url type="website">http://acado.github.io/</url>
+
+  <!-- Maintainer of the ROS packaged release. -->
+  <maintainer email="mpurvis@clearpathrobotics.com">Mike Purvis</maintainer>
+
+  <buildtool_depend>cmake</buildtool_depend>
+  <run_depend>catkin</run_depend>
+  <export>
+    <build_type>cmake</build_type>
+  </export>
+</package>
+
