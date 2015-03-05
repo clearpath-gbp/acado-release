@@ -629,3 +629,7 @@ ENDIF( ACADO_WITH_EXAMPLES )
 IF( ACADO_INTERNAL )
 	ADD_SUBDIRECTORY( ./experimental )
 ENDIF( ACADO_INTERNAL )
+
+
+# Patched in installation rule.
+install(FILES package.xml DESTINATION share/acado)
