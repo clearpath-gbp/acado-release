@@ -12,6 +12,8 @@
   <maintainer email="mpurvis@clearpathrobotics.com">Mike Purvis</maintainer>
 
   <buildtool_depend>cmake</buildtool_depend>
+  <build_depend>boost</build_depend>
+  <run_depend>boost</run_depend>
   <run_depend>catkin</run_depend>
   <export>
     <build_type>cmake</build_type>
