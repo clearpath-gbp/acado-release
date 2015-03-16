@@ -31,6 +31,8 @@ function [ ] = makehelper( type, optmake, varargin )
 %    Date: 2009
 % 
 
+PARALLEL = 0;
+VERBOSE = 0;
 
 %% SETTINGS
     if (nargin == 2)
@@ -51,11 +53,36 @@ function [ ] = makehelper( type, optmake, varargin )
         MAKE = 1;
         FORCE = 0;
         
+    elseif (nargin == 3 && length(varargin{1}) == 1 && strcmp(varargin{1}{1}, 'verbose'))
+        DEBUG = 0;
+        VERBOSE = 1;
+        CLEANUP = 0;
+        MAKE = 1;
+        FORCE = 0;
+        
+    elseif (nargin == 3 && length(varargin{1}) == 2 && strcmp(varargin{1}{1}, 'all') && strcmp(varargin{1}{2}, 'verbose'))
+        DEBUG = 0;
+        VERBOSE = 1;
+        CLEANUP = 0;
+        MAKE = 1;
+        FORCE = 1;
+        
     elseif (nargin == 3 && length(varargin{1}) == 1 && strcmp(varargin{1}{1}, 'all'))
         DEBUG = 0;
         CLEANUP = 0;
         MAKE = 1;
         FORCE = 1;
+        
+    elseif (nargin == 3 && length(varargin{1}) == 2 && strcmp(varargin{1}{1}, 'all') && strcmp(varargin{1}{2}, 'par'))
+        DEBUG = 0;
+        CLEANUP = 0;
+        MAKE = 1;
+        FORCE = 1;
+        PARALLEL = 1;
+        try
+            matlabpool close
+        end
+        matlabpool open 4
         
     elseif (nargin == 3 && length(varargin{1}) == 2 && strcmp(varargin{1}{1}, 'all') && strcmp(varargin{1}{2}, 'debug'))
         DEBUG = 1;
@@ -121,7 +148,7 @@ function [ ] = makehelper( type, optmake, varargin )
         CPPFLAGS  = [ IFLAGS, ' -DWIN32 -D__cpluplus -D__MATLAB__ -Dsnprintf=_snprintf -Dround=acadoRound -O ' ];    
     elseif (ismac)
         % Other compilers
-        CPPFLAGS  = [ IFLAGS, ' CXXFLAGS=''\$CXXFLAGS -fPIC'' -DLINUX -D__cpluplus -D__MATLAB__ -O ' ];
+        CPPFLAGS  = [ IFLAGS, ' LDFLAGS=''\$LDFLAGS -stdlib=libstdc++'' CXXFLAGS=''\$CXXFLAGS -fPIC -stdlib=libstdc++'' -DLINUX -D__cpluplus -D__MATLAB__ -O ' ];
     else
         % Other compilers
         CPPFLAGS  = [ IFLAGS, ' CXXFLAGS=''\$CXXFLAGS -fPIC -Wno-c++11-compat -Wno-unused-comparison'' -DLINUX -D__cpluplus -D__MATLAB__ -O ' ];
@@ -137,6 +164,8 @@ function [ ] = makehelper( type, optmake, varargin )
        else
            DEBUGFLAGS = '-g CXXDEBUGFLAGS=''\$CXXDEBUGFLAGS -Wall -pedantic -Wfloat-equal -Wshadow';
        end
+    elseif ( VERBOSE == 1 )
+        DEBUGFLAGS = '-v';
     end
           
     
@@ -157,6 +186,7 @@ function [ ] = makehelper( type, optmake, varargin )
         delete([BIN_FOLDER 'qpOASES' filesep '*' ext]);
         delete([BIN_FOLDER 'src' filesep '*' ext]);
         delete([BIN_FOLDER 'csparse' filesep '*' ext]);
+        delete([BIN_FOLDER 'acado' filesep '*' ext]);
         delete(['integrator' filesep '*' extmex '*']);
         %delete(['acado' filesep '*' extmex '*']);
         
@@ -174,6 +204,8 @@ function [ ] = makehelper( type, optmake, varargin )
 
 %% MAKING
     if (MAKE)
+        t_make = tic;
+        
         fprintf (1, 'Making ACADO... \n') ;
         
         addTemplates;
@@ -182,33 +214,54 @@ function [ ] = makehelper( type, optmake, varargin )
         CBINFILES = [];
         nFiles = length(SRC);
         progressInPercent = 10;
-        for i = 1:nFiles
-            force_compilation = check_to_compile (SRC{i}, [BIN_FOLDER, BINFOLDER{i} BIN{i}, ext], FORCE) ;
-            if (force_compilation)
-                cmd = sprintf ('mex -O -c %s -outdir %s %s %s', ...
-                    DEBUGFLAGS, [BIN_FOLDER BINFOLDER{i}], CPPFLAGS, SRC{i}) ;
-                counter = execute_command (cmd, counter, DEBUG, SRC{i}) ;
-            else
-				fprintf (1, '*') ;
+        
+        if PARALLEL 
+            for i = 1:nFiles
+                CBINFILES = [CBINFILES ' ' '''' pwd filesep BIN_FOLDER BINFOLDER{i} BIN{i} ext ''''];
             end
-            if ( (i/nFiles) >= (progressInPercent/100) )
-				fprintf (1, sprintf(' %d', progressInPercent)) ;
-				fprintf (1, '%%\n' ) ;
-				progressInPercent = progressInPercent+10 ;
+            parfor i = 1:nFiles
+                force_compilation = check_to_compile (SRC{i}, [BIN_FOLDER, BINFOLDER{i} BIN{i}, ext], FORCE) ;
+                if (force_compilation)
+                    cmd = sprintf ('mex -O -c %s -outdir %s %s %s', ...
+                        DEBUGFLAGS, [BIN_FOLDER BINFOLDER{i}], CPPFLAGS, SRC{i}) ;
+                    execute_command (cmd, DEBUG, SRC{i}, ~PARALLEL) ;
+                    counter = counter + 1 ;
+                end
             end
-
-            CBINFILES = [CBINFILES ' ' '''' pwd filesep BIN_FOLDER BINFOLDER{i} BIN{i} ext ''''] ; %#ok<AGROW>
+        else
+            for i = 1:nFiles
+                force_compilation = check_to_compile (SRC{i}, [BIN_FOLDER, BINFOLDER{i} BIN{i}, ext], FORCE) ;
+                if (force_compilation)
+                    cmd = sprintf ('mex -O -c %s -outdir %s %s %s', ...
+                        DEBUGFLAGS, [BIN_FOLDER BINFOLDER{i}], CPPFLAGS, SRC{i}) ;
+                    execute_command (cmd, DEBUG, SRC{i}, ~PARALLEL) ;
+                    counter = counter + 1 ;
+                else
+                    fprintf (1, '*') ;
+                end
+                if ( (i/nFiles) >= (progressInPercent/100) )
+                    fprintf (1, sprintf(' %d', progressInPercent)) ;
+                    fprintf (1, '%%\n' ) ;
+                    progressInPercent = progressInPercent+10 ;
+                end
+                
+                CBINFILES = [CBINFILES ' ' '''' pwd filesep BIN_FOLDER BINFOLDER{i} BIN{i} ext ''''];
+            end
         end
-
-
+        if ispc
+            ACADOLIB = [pwd filesep 'bin/acado/*' ext ' ' pwd filesep 'bin/acado/casadi/*' ext ' ' pwd filesep 'bin/acado/qpOASES/*' ext];
+        else
+            ACADOLIB = CBINFILES;
+        end
 
         % Mex files
         for i = 1:length (SRCMEX)
             force_compilation = check_to_compile (SRCMEX{i}, [BINFOLDERMEX{i}, BINMEX{i}, extmex], FORCE) ;
             if (force_compilation || counter > 0 || strcmp(BINMEX{i}, 'ACADOintegrators'))  
                 cmd = sprintf ('mex -O %s %s %s %s -outdir %s -output %s', ...
-                    DEBUGFLAGS, CPPFLAGS, SRCMEX{i}, CBINFILES, BINFOLDERMEX{i}, [BINMEX{i}, extmex]) ;
-                counter = execute_command (cmd, counter, DEBUG, SRCMEX{i}) ;
+                    DEBUGFLAGS, CPPFLAGS, SRCMEX{i}, ACADOLIB, BINFOLDERMEX{i}, [BINMEX{i}, extmex]) ;
+                execute_command (cmd, DEBUG, SRCMEX{i}, ~PARALLEL) ;
+                counter = counter + 1 ;
             end
         end
 
@@ -216,8 +269,9 @@ function [ ] = makehelper( type, optmake, varargin )
         % Compile option files with "makemex"
         if (~isempty(optmake) && ~isempty(optmake.mexfile) && ~isempty(optmake.outputname))
             cmd = sprintf ('mex -O %s %s %s %s -outdir %s -output %s', ...
-                DEBUGFLAGS, CPPFLAGS, optmake.mexfile, CBINFILES, optmake.outputdir, [optmake.outputname, extmex]) ;
-            counter = execute_command (cmd, counter, DEBUG, optmake.mexfile) ;
+                DEBUGFLAGS, CPPFLAGS, optmake.mexfile, ACADOLIB, optmake.outputdir, [optmake.outputname, extmex]) ;
+            execute_command (cmd, DEBUG, optmake.mexfile, ~PARALLEL) ;
+            counter = counter + 1 ;
         end
  
         % Store important variables in globals.m file
@@ -228,7 +282,7 @@ function [ ] = makehelper( type, optmake, varargin )
         fprintf(file,'\nACADO_.problemname = '''';');
         fprintf(file,'\nACADO_.modelactive = 0;');
         fprintf(file,sprintf('\nACADO_.mexcall = ''mex -O %s %s %s %s -output %s'';', ...
-            DEBUGFLAGS, regexprep(regexprep(CPPFLAGS, '\\', '\\\\'), '''', ''''''), '%%s', regexprep(regexprep(CBINFILES, '\\', '\\\\'), '''', ''''''), ['%%s', extmex]));
+            DEBUGFLAGS, regexprep(regexprep(CPPFLAGS, '\\', '\\\\'), '''', ''''''), '%%s', regexprep(regexprep(ACADOLIB, '\\', '\\\\'), '''', ''''''), ['%%s', extmex]));
         
         fclose(file);
         
@@ -254,23 +308,27 @@ function [ ] = makehelper( type, optmake, varargin )
         fprintf (1, 'to set all paths or run savepath in your console to \n') ;
         fprintf (1, 'save the current search path for future sessions.\n') ;
          
+        toc(t_make)
+    end
+    
+    if PARALLEL
+        matlabpool close
     end
     
     warning on all
 end
 
 
-function counter = execute_command (s, counter, full_logging, shorthand)
+function [] = execute_command (s, full_logging, shorthand, progress)
     s = strrep (s, '/', filesep) ;
     if (full_logging)
         fprintf (1, '%s  -->  %s\n', shorthand, s);
-    else
+    elseif (progress)
         %if (mod (counter, 20) == 0)
         %    fprintf (1, '\n') ;
         %end
         fprintf (1, '*') ;
     end
-    counter = counter + 1 ;
     eval (s) ;
 end
 
