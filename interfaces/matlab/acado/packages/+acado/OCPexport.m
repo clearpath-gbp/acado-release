@@ -45,6 +45,9 @@
 
 classdef OCPexport < acado.ExportModule
     properties (GetAccess = 'public', SetAccess = 'protected')
+        
+        userName;
+        
         % public read access, but private write access.
         Tc;
         Ncvp;
@@ -74,6 +77,11 @@ classdef OCPexport < acado.ExportModule
                 error('Unsupported use of the OCPexport constructor.')
             end
             
+        end
+        
+        
+        function setName(obj, name)
+            obj.userName = name;
         end
         
         
@@ -109,15 +117,17 @@ classdef OCPexport < acado.ExportModule
                     error('Unable to export a RTI algorithm without an OCP formulation.');
                 end
                 
+                % SET USER SPECIFIED NAME
+                if ~isempty(obj.userName)
+                    fprintf(cppobj.fileMEX,sprintf('    %s.setName( "%s" );\n', obj.name, obj.userName));
+                end
+                
                 % OPTIONS
                 fprintf(cppobj.fileMEX,sprintf('    %s.set( GENERATE_MATLAB_INTERFACE, 1 );\n', obj.name));
                 getOptions(obj, cppobj);
                 
                 % EXPORT
                 if ~isempty(obj.dir)
-                    % SET TIMING CALLS
-                    fprintf(cppobj.fileMEX,sprintf('    %s.setTimingCalls( %s );\n', obj.name, num2str(obj.timingCalls)));
-                    
                     fprintf(cppobj.fileMEX,sprintf('    %s.exportCode( "%s" );\n', obj.name, obj.dir));
                 end
                 
