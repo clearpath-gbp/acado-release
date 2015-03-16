@@ -19,5 +19,5 @@ tracks:
     release_tag: :{ask}
     ros_distro: indigo
     vcs_type: git
-    vcs_uri: https://github.com/acado/acado.git
+    vcs_uri: https://github.com/clearpathrobotics/acado.git
     version: :{ask}
