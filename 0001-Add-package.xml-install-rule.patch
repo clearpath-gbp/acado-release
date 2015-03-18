@@ -1,0 +1,24 @@
+From 0ca11e04742f2c8063300348c4a89211c8ec449c Mon Sep 17 00:00:00 2001
+From: Mike Purvis <mpurvis@clearpathrobotics.com>
+Date: Wed, 18 Mar 2015 09:20:36 -0400
+Subject: [PATCH] Add package.xml install rule.
+
+---
+ CMakeLists.txt | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 5f536a3..62044e9 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -250,6 +250,7 @@ INSTALL(
+ 		${INSTALL_INCLUDE_DIR}
+ 	FILES_MATCHING PATTERN "*.ipp"
+ )
++install(FILES package.xml DESTINATION share/acado)
+ 
+ #
+ # Install Eigen3
+-- 
+2.0.4
+
