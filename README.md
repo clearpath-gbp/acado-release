@@ -1,3 +1,24 @@
+## acado (hydro) - 1.2.1-7
+
+The packages in the `acado` repository were released into the `hydro` distro by running `/usr/bin/bloom-release --track hydro --ros-distro hydro acado` on `Wed, 06 May 2015 15:12:35 -0000`
+
+The `acado` package was released.
+
+Version of package(s) in repository `acado`:
+- upstream repository: https://github.com/clearpathrobotics/acado.git
+- release repository: https://github.com/clearpath-gbp/acado-release.git
+- rosdistro version: `1.2.1-6`
+- old version: `1.2.1-6`
+- new version: `1.2.1-7`
+
+Versions of tools used:
+- bloom version: `0.5.20`
+- catkin_pkg version: `0.2.8`
+- rosdep version: `0.11.2`
+- rosdistro version: `0.4.2`
+- vcstools version: `0.1.36`
+
+
 ## acado (hydro) - 1.2.1-6
 
 The packages in the `acado` repository were released into the `hydro` distro by running `/usr/local/bin/bloom-release -r hydro -t hydro acado` on `Wed, 18 Mar 2015 13:24:38 -0000`
