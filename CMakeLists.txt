@@ -250,7 +250,6 @@ INSTALL(
 		${INSTALL_INCLUDE_DIR}
 	FILES_MATCHING PATTERN "*.ipp"
 )
-install(FILES package.xml DESTINATION share/acado)
 
 #
 # Install Eigen3
