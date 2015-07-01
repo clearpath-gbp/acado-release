@@ -1,10 +1,10 @@
-From 8a7f667f61ff6e7e0882cc97beb108a1b19d5153 Mon Sep 17 00:00:00 2001
+From 529da9b033d9b2f2e241d7e6d08945a20972bf35 Mon Sep 17 00:00:00 2001
 From: Mike Purvis <mpurvis@clearpathrobotics.com>
 Date: Mon, 16 Mar 2015 13:40:24 -0400
 Subject: [PATCH] Patch in install rule for package.xml.
 
 ---
- CMakeLists.txt |    1 +
+ CMakeLists.txt | 1 +
  1 file changed, 1 insertion(+)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
@@ -20,5 +20,5 @@ index 5f536a3..62044e9 100644
  #
  # Install Eigen3
 -- 
-1.7.9.5
+1.9.1
 
