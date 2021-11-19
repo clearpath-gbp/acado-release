@@ -31,6 +31,7 @@
 
 #include <acado/code_generation/export_exact_hessian_cn2.hpp>
 #include <acado/code_generation/export_qpoases_interface.hpp>
+#include <acado/code_generation/export_qpoases3_interface.hpp>
 
 using namespace std;
 
@@ -43,11 +44,9 @@ ExportExactHessianCN2::ExportExactHessianCN2(	UserInteraction* _userInteraction,
 
 returnValue ExportExactHessianCN2::setup( )
 {
-	std::cout << "NOTE: You are using the new (unstable) N2 condensing feature for exact Hessian based RTI..\n";
-
+	if (performFullCondensing() == true && initialStateFixed() == false)
+		return ACADOERRORTEXT( RET_INVALID_OPTION, "Impossible to perform full condensing, when the initial state is not fixed. You can use regular condensing instead." );
 	if (performFullCondensing() == false && initialStateFixed() == true)
-		return ACADOERROR( RET_NOT_IMPLEMENTED_YET );
-	if (getNumComplexConstraints() > 0)
 		return ACADOERROR( RET_NOT_IMPLEMENTED_YET );
 	if (performsSingleShooting() == true)
 		return ACADOERROR( RET_NOT_IMPLEMENTED_YET );
@@ -113,6 +112,10 @@ returnValue ExportExactHessianCN2::setupObjectiveEvaluation( void )
 {
 	evaluateObjective.setup("evaluateObjective");
 
+	int gradientUp;
+	get( LIFTED_GRADIENT_UPDATE, gradientUp );
+	bool gradientUpdate = (bool) gradientUp;
+
 	//
 	// A loop the evaluates objective and corresponding gradients
 	//
@@ -123,10 +126,14 @@ returnValue ExportExactHessianCN2::setupObjectiveEvaluation( void )
 
 	unsigned offset = performFullCondensing() == true ? 0 : NX;
 
+	int sensitivityProp;
+	get( DYNAMIC_SENSITIVITY, sensitivityProp );
+	bool adjoint = ((ExportSensitivityType) sensitivityProp == BACKWARD);
+
 	if( evaluateStageCost.getFunctionDim() > 0 ) {
 		loopObjective.addStatement( objValueIn.getCols(0, getNX()) == x.getRow( runObj ) );
 		loopObjective.addStatement( objValueIn.getCols(NX, NX + NU) == u.getRow( runObj ) );
-		loopObjective.addStatement( objValueIn.getCols(NX + NU, NX + NU + NOD) == od );
+		loopObjective.addStatement( objValueIn.getCols(NX + NU, NX + NU + NOD) == od.getRow( runObj ) );
 		loopObjective.addLinebreak( );
 
 		// Evaluate the objective function
@@ -162,10 +169,17 @@ returnValue ExportExactHessianCN2::setupObjectiveEvaluation( void )
 		setObjR1R2.addStatement( tmpDx == tmpDF.getRows(0,NX) );
 		setObjR1R2.addStatement( tmpDu == tmpDF.getRows(NX,NX+NU) );
 
+		if( gradientUpdate || adjoint ) {
+			loopObjective.addStatement( objValueOut.getCols(1,1+NX+NU) += objg.getRows(runObj*(NX+NU),(runObj+1)*(NX+NU)).getTranspose() );
+		}
 		loopObjective.addFunctionCall(
 				setObjR1R2, QDy.getAddress(runObj * NX), g.getAddress(offset+runObj * NU, 0), objValueOut.getAddress(0, 1) );
 
 		loopObjective.addLinebreak( );
+	}
+	else if( gradientUpdate || adjoint ) {
+		loopObjective.addStatement( QDy.getRows(runObj*NX, runObj*NX+NX) == objg.getRows(runObj*(NX+NU),runObj*(NX+NU)+NX) );
+		loopObjective.addStatement( g.getRows(offset+runObj*NU, offset+runObj*NU+NU) == objg.getRows(runObj*(NX+NU)+NX,(runObj+1)*(NX+NU)) );
 	}
 	else {
 		DMatrix Du(NU,1); Du.setAll(0);
@@ -181,7 +195,7 @@ returnValue ExportExactHessianCN2::setupObjectiveEvaluation( void )
 	//
 	if( evaluateTerminalCost.getFunctionDim() > 0 ) {
 		evaluateObjective.addStatement( objValueIn.getCols(0, NX) == x.getRow( N ) );
-		evaluateObjective.addStatement( objValueIn.getCols(NX, NX + NOD) == od );
+		evaluateObjective.addStatement( objValueIn.getCols(NX, NX + NOD) == od.getRow( N ) );
 
 		// Evaluate the objective function, last node.
 		evaluateObjective.addFunctionCall(evaluateTerminalCost, objValueIn, objValueOut);
@@ -219,19 +233,27 @@ returnValue ExportExactHessianCN2::setupObjectiveEvaluation( void )
 
 returnValue ExportExactHessianCN2::setupHessianRegularization( )
 {
+    string moduleName;
+	get(CG_MODULE_NAME, moduleName);
+    
 	ExportVariable block( "hessian_block", NX+NU, NX+NU );
-	regularization = ExportFunction( "acado_regularize", block );
+	regularization = ExportFunction( "regularize", block );
 	regularization.doc( "EVD-based regularization of a Hessian block." );
 	regularization.addLinebreak();
 
 	regularizeHessian.setup( "regularizeHessian" );
 	regularizeHessian.doc( "Regularization procedure of the computed exact Hessian." );
 
+	int hessianRegularization;
+	get( HESSIAN_REGULARIZATION, hessianRegularization );
+
 	ExportIndex oInd;
 	regularizeHessian.acquire( oInd );
 
 	ExportForLoop loopObjective(oInd, 0, N);
-	loopObjective.addFunctionCall( regularization, objS.getAddress(oInd*(NX+NU),0) );
+	if( (HessianRegularizationMode) hessianRegularization == BLOCK_REG ) {
+		loopObjective.addFunctionCall( regularization, objS.getAddress(oInd*(NX+NU),0) );
+	}
 	loopObjective.addStatement( Q1.getRows(oInd*NX, oInd*NX+NX) == objS.getSubMatrix(oInd*(NX+NU), oInd*(NX+NU)+NX, 0, NX) );
 	loopObjective.addStatement( S1.getRows(oInd*NX, oInd*NX+NX) == objS.getSubMatrix(oInd*(NX+NU), oInd*(NX+NU)+NX, NX, NX+NU) );
 	loopObjective.addStatement( R1.getRows(oInd*NU, oInd*NU+NU) == objS.getSubMatrix(oInd*(NX+NU)+NX, oInd*(NX+NU)+NX+NU, NX, NX+NU) );

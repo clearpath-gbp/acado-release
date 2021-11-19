@@ -119,11 +119,11 @@ returnValue ForwardIRKExport::getDataDeclarations(	ExportStatementBlock& declara
 
 	declarations.addDeclaration( rk_diffsTemp3,dataStruct );
 
-	if( grid.getNumIntervals() > 1 || !equidistantControlGrid() ) {
+//	if( grid.getNumIntervals() > 1 || !equidistantControlGrid() ) {
 		declarations.addDeclaration( rk_diffsPrev1,dataStruct );
 		declarations.addDeclaration( rk_diffsPrev2,dataStruct );
 		declarations.addDeclaration( rk_diffsPrev3,dataStruct );
-	}
+//	}
 
 	declarations.addDeclaration( rk_diffsNew1,dataStruct );
 	declarations.addDeclaration( rk_diffsNew2,dataStruct );
@@ -244,25 +244,28 @@ returnValue ForwardIRKExport::getCode(	ExportStatementBlock& code )
 	
 	initializeDDMatrix();
 	initializeCoefficients();
+    
+    string moduleName;
+	get(CG_MODULE_NAME, moduleName);
 
 	double h = (grid.getLastTime() - grid.getFirstTime())/grid.getNumIntervals();
 	DMatrix tmp = AA;
-	ExportVariable Ah( "Ah_mat", tmp*=h, STATIC_CONST_REAL );
+	ExportVariable Ah( moduleName+"_Ah_mat", tmp*=h, STATIC_CONST_REAL );
 	code.addDeclaration( Ah );
 	code.addLinebreak( 2 );
 	// TODO: Ask Milan why this does NOT work properly !!
-	Ah = ExportVariable( "Ah_mat", numStages, numStages, STATIC_CONST_REAL, ACADO_LOCAL );
+	Ah = ExportVariable( moduleName+"_Ah_mat", numStages, numStages, STATIC_CONST_REAL, ACADO_LOCAL );
 
 	DVector BB( bb );
-	ExportVariable Bh( "Bh_mat", DMatrix( BB*=h ) );
+	ExportVariable Bh( moduleName+"_Bh_mat", DMatrix( BB*=h ) );
 
 	DVector CC( cc );
 	ExportVariable C;
 	if( timeDependant ) {
-		C = ExportVariable( "C_mat", DMatrix( CC*=(1.0/grid.getNumIntervals()) ), STATIC_CONST_REAL );
+		C = ExportVariable( moduleName+"_C_mat", DMatrix( CC*=(1.0/grid.getNumIntervals()) ), STATIC_CONST_REAL );
 		code.addDeclaration( C );
 		code.addLinebreak( 2 );
-		C = ExportVariable( "C_mat", 1, numStages, STATIC_CONST_REAL, ACADO_LOCAL );
+		C = ExportVariable( moduleName+"_C_mat", 1, numStages, STATIC_CONST_REAL, ACADO_LOCAL );
 	}
 
 	code.addComment(std::string("Fixed step size:") + toString(h));
@@ -281,9 +284,9 @@ returnValue ForwardIRKExport::getCode(	ExportStatementBlock& code )
 	ExportIndex tmp_index4("tmp_index4");
 	ExportVariable tmp_meas("tmp_meas", 1, outputGrids.size(), INT, ACADO_LOCAL);
 
-	ExportVariable numInt( "numInts", 1, 1, INT );
+	ExportVariable numInt( moduleName+"_numInts", 1, 1, INT );
 	if( !equidistantControlGrid() ) {
-		ExportVariable numStepsV( "numSteps", numSteps, STATIC_CONST_INT );
+		ExportVariable numStepsV( moduleName+"_numSteps", numSteps, STATIC_CONST_INT );
 		code.addDeclaration( numStepsV );
 		code.addLinebreak( 2 );
 		integrate.addStatement( std::string( "int " ) + numInt.getName() + " = " + numStepsV.getName() + "[" + rk_index.getName() + "];\n" );
@@ -325,6 +328,16 @@ returnValue ForwardIRKExport::getCode(	ExportStatementBlock& code )
 		integrate.addStatement( rk_xxx.getCols( NX+NXA,inputDim-diffsDim ) == rk_eta.getCols( NX+NXA+diffsDim,inputDim ) );
 	}
 	integrate.addLinebreak( );
+
+	if( NXA > 0 ) {
+		integrate.addStatement( std::string( "if( " ) + reset_int.getFullName() + " ) {\n" );
+		for( run5 = 0; run5 < NXA; run5++ ) {
+			for( uint iStage = 0; iStage < numStages; iStage++ ) {
+				integrate.addStatement( rk_kkk.getElement(NX+run5,iStage) == rk_eta.getCol(NX+run5) );
+			}
+		}
+		integrate.addStatement( std::string( "}\n" ) );
+	}
 
     // integrator loop:
 	ExportForLoop tmpLoop( run, 0, grid.getNumIntervals() );
@@ -376,7 +389,7 @@ returnValue ForwardIRKExport::getCode(	ExportStatementBlock& code )
 	solveInputSystem( loop, i, run1, j, tmp_index1, Ah );
 
 	// PART 2: The fully implicit system
-	solveImplicitSystem( loop, i, run1, j, tmp_index1, Ah, C, determinant, true );
+	solveImplicitSystem( loop, i, run1, j, tmp_index1, ExportIndex(0), Ah, C, determinant, true );
 
 	// PART 3: The linear output system
 	prepareOutputSystem( code );
@@ -438,11 +451,15 @@ returnValue ForwardIRKExport::getCode(	ExportStatementBlock& code )
 	}
 	if( NXA > 0) {
 		DMatrix tempCoefs( evaluateDerivedPolynomial( 0.0 ) );
-		loop->addStatement( std::string("if( run == 0 ) {\n") );
+		if( !equidistantControlGrid() || grid.getNumIntervals() > 1 ) {
+			loop->addStatement( std::string("if( run == 0 ) {\n") );
+		}
 		for( run5 = 0; run5 < NXA; run5++ ) {
 			loop->addStatement( rk_eta.getCol( NX+run5 ) == rk_kkk.getRow( NX+run5 )*tempCoefs );
 		}
-		loop->addStatement( std::string("}\n") );
+		if( !equidistantControlGrid() || grid.getNumIntervals() > 1 ) {
+			loop->addStatement( std::string("}\n") );
+		}
 	}
 
 
@@ -783,7 +800,7 @@ returnValue ForwardIRKExport::sensitivitiesImplicitSystem( ExportStatementBlock*
 		block->addStatement( loop1 );
 		if( STATES && (number == 1 || NX1 == 0) ) {
 			block->addStatement( std::string( "if( 0 == " ) + index1.getName() + " ) {\n" );	// factorization of the new matrix rk_A not yet calculated!
-			block->addStatement( det.getFullName() + " = " + solver->getNameSolveFunction() + "( " + rk_A.getFullName() + ", " + rk_b.getFullName() + ", " + rk_auxSolver.getFullName() + " );\n" );
+			block->addStatement( det.getFullName() + " = " + ExportStatement::fcnPrefix + "_" + solver->getNameSolveFunction() + "( " + rk_A.getFullName() + ", " + rk_b.getFullName() + ", " + rk_auxSolver.getFullName() + " );\n" );
 			block->addStatement( std::string( "}\n else {\n" ) );
 		}
 		block->addFunctionCall( solver->getNameSolveReuseFunction(),rk_A.getAddress(0,0),rk_b.getAddress(0,0),rk_auxSolver.getAddress(0,0) );
@@ -802,12 +819,16 @@ returnValue ForwardIRKExport::sensitivitiesImplicitSystem( ExportStatementBlock*
 		else		 		loop3.addStatement( rk_diffsNew2.getElement( index2,index1+NX1+NX2 ) == rk_diffK.getRow( NX1+index2 )*Bh );
 		block->addStatement( loop3 );
 		if( NXA > 0 ) {
-			block->addStatement( std::string("if( run == 0 ) {\n") );
+			if( !equidistantControlGrid() || grid.getNumIntervals() > 1 ) {
+				block->addStatement( std::string("if( run == 0 ) {\n") );
+			}
 			ExportForLoop loop4( index2,0,NXA );
 			if( STATES ) loop4.addStatement( rk_diffsNew2.getElement( index2+NX2,index1 ) == rk_diffK.getRow( NX+index2 )*tempCoefs );
 			else 		 loop4.addStatement( rk_diffsNew2.getElement( index2+NX2,index1+NX1+NX2 ) == rk_diffK.getRow( NX+index2 )*tempCoefs );
 			block->addStatement( loop4 );
-			block->addStatement( std::string("}\n") );
+			if( !equidistantControlGrid() || grid.getNumIntervals() > 1 ) {
+				block->addStatement( std::string("}\n") );
+			}
 		}
 	}
 

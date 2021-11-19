@@ -131,6 +131,15 @@ class IntegratorExport : public ExportAlgorithm
 		 *
 		 *	\return SUCCESSFUL_RETURN
 		 */
+		virtual returnValue setNonlinearFeedback( const DMatrix& C, const Expression& feedb );
+
+
+		/** .
+		 *
+		 *	@param[in] 		.
+		 *
+		 *	\return SUCCESSFUL_RETURN
+		 */
 		virtual returnValue setLinearOutput( const DMatrix& M3, const DMatrix& A3, const std::string& _rhs3, const std::string& _diffs_rhs3 );
 
 
@@ -212,7 +221,7 @@ class IntegratorExport : public ExportAlgorithm
 		virtual returnValue propagateImplicitSystem( 	ExportStatementBlock* block,
 														const ExportIndex& index1,
 														const ExportIndex& index2,
-														const ExportIndex& index3,
+														const ExportIndex& _index3,
 														const ExportIndex& tmp_index  	);
 
 
@@ -489,7 +498,7 @@ class IntegratorExport : public ExportAlgorithm
 typedef ExportAlgorithmFactory<IntegratorExport, ExportIntegratorType> IntegratorExportFactory;
 
 /** Shared pointer to an integrator. */
-typedef std::tr1::shared_ptr< IntegratorExport > IntegratorExportPtr;
+typedef std::shared_ptr< IntegratorExport > IntegratorExportPtr;
 
 CLOSE_NAMESPACE_ACADO
 

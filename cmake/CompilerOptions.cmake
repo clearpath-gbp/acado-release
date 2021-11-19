@@ -80,6 +80,10 @@ IF (    "${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU"
      OR "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel" )
 	
 	# Cygwin complains in about the -fPIC flag...
+	IF( CYGWIN )
+		ADD_DEFINITIONS( -D__NO_PIPES__ )
+	ENDIF( )
+
 	IF( NOT (CYGWIN OR WIN32) )
 		SET( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC" )
 		SET( CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC" )
@@ -98,7 +102,7 @@ IF (    "${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU"
 	ENDIF()
 	
 	IF ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
-		SET( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-comparison" )
+		SET( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-comparison -Dregister=''" )
 	ENDIF()
 
 	#
@@ -111,7 +115,7 @@ IF (    "${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU"
 		ENDIF()
 		
 		IF ( "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang" )
-			SET( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libstdc++" )
+			SET( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++" )
 		ENDIF()
 
 	ENDIF( APPLE )
@@ -121,7 +125,6 @@ IF (    "${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU"
 	# NOTE: This is only done in the case when we don't use OSX with Clang
 	#       (version >= 4.0) since there are namespace problems (std::tr1 is removed).
 	#
-	IF ( NOT (APPLE AND "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang") )
 		CHECK_CXX_COMPILER_FLAG(-std=c++11 COMPILER_SUPPORTS_CXX11 )
 		CHECK_CXX_COMPILER_FLAG(-std=gnu++11 COMPILER_SUPPORTS_GNU11)
 		CHECK_CXX_COMPILER_FLAG(-std=c++0x COMPILER_SUPPORTS_CXX0X)
@@ -136,8 +139,7 @@ IF (    "${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU"
 		ELSEIF( COMPILER_SUPPORTS_GNU0X)
 			SET( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=gnu++0x -DACADO_HAS_CXX0X" )
 		ENDIF()
-	ENDIF()
-
+	
 	IF ( MINGW )
         SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -static")
 		SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -static")
@@ -170,20 +172,24 @@ ELSEIF( MSVC )
 		MESSAGE( STATUS "Looking for Gnuplot executable: not found." )
 	ENDIF()
 	MARK_AS_ADVANCED( FORCE GNUPLOT_EXECUTABLE )
-	
+
 	#
 	# Some common definitions
 	#
 	ADD_DEFINITIONS( -DWIN32 )
 	ADD_DEFINITIONS( -D__NO_COPYRIGHT__ )
-	ADD_DEFINITIONS( -Dsnprintf=_snprintf )
+	#ADD_DEFINITIONS( -Dsnprintf=_snprintf )
 	ADD_DEFINITIONS( -Dusleep=Sleep )
 	ADD_DEFINITIONS( -Dsleep=Sleep )
 	ADD_DEFINITIONS( -D_CRT_SECURE_NO_WARNINGS )
 	ADD_DEFINITIONS( -D_SCL_SECURE_NO_WARNINGS )
 	ADD_DEFINITIONS( -D__NO_PIPES__ )
 	ADD_DEFINITIONS( "/wd4068")
-	
+
+    IF(MSVC_VERSION LESS 1900)
+        ADD_DEFINITIONS( -Dsnprintf=_snprintf )
+    ENDIF()
+
 	IF( GNUPLOT_EXECUTABLE )
 		ADD_DEFINITIONS( -DGNUPLOT_EXECUTABLE="${GNUPLOT_EXECUTABLE}" )
 	ENDIF()

@@ -103,15 +103,36 @@ classdef OCPexport < acado.ExportModule
         end
         
         
+        function setDebugMode(obj)
+            obj.debugMode = 1;
+        end
+        
+        
         function getInstructions(obj, cppobj, get)
             
-            if (get == 'B')
+            global ACADO_;
+            NU = numel(ACADO_.helper.u);
+            NP = numel(ACADO_.helper.p);
+            NOD = numel(ACADO_.helper.od);
+                
+            if (get == 'FB')
+                % SET LOGGER TO LVL_DEBUG
+                if obj.debugMode
+                    fprintf(cppobj.fileMEX,'    Logger::instance().setLogLevel( LVL_DEBUG );\n');
+                end
+            elseif (get == 'B')
                 
                 % HEADER
                 if ~isempty(obj.ocp)
                     if ~acadoDefined(obj.ocp)
                         obj.ocp.getInstructions(cppobj, get);
                     end
+                    
+                    % Set number of controls and online data:
+                    fprintf(cppobj.fileMEX,sprintf('    %s.setNU( %s );\n', obj.ocp.name, num2str(NU)));
+                    fprintf(cppobj.fileMEX,sprintf('    %s.setNP( %s );\n', obj.ocp.name, num2str(NP)));
+                    fprintf(cppobj.fileMEX,sprintf('    %s.setNOD( %s );\n', obj.ocp.name, num2str(NOD)));
+                    
                     fprintf(cppobj.fileMEX,sprintf('    OCPexport %s( %s );\n', obj.name, obj.ocp.name));
                 else
                     error('Unable to export a RTI algorithm without an OCP formulation.');
@@ -128,7 +149,9 @@ classdef OCPexport < acado.ExportModule
                 
                 % EXPORT
                 if ~isempty(obj.dir)
-                    fprintf(cppobj.fileMEX,sprintf('    %s.exportCode( "%s" );\n', obj.name, obj.dir));
+                    fprintf(cppobj.fileMEX,'    uint export_flag;\n');
+                    fprintf(cppobj.fileMEX,sprintf('    export_flag = %s.exportCode( "%s" );\n', obj.name, obj.dir));
+                    fprintf(cppobj.fileMEX,'    if(export_flag != 0) mexErrMsgTxt(\"ACADO export failed because of the above error(s)!\");\n');
                 end
                 
                 % PRINT DIMENSIONS QP

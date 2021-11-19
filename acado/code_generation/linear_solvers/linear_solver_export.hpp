@@ -101,6 +101,12 @@ class ExportLinearSolver : public ExportAlgorithm
 							const bool& unrolling = false
 							);
 
+		returnValue init(	const uint newDim,
+							const uint _nRightHandSides,
+							const bool& reuse = true,
+							const bool& unrolling = false
+							);
+
 
 		/** Initializes the different parameters of the linear solver that will be exported.
 		 *
@@ -124,6 +130,16 @@ class ExportLinearSolver : public ExportAlgorithm
 		returnValue init(	unsigned _nRows,
 							unsigned _nCols,
 							unsigned _nBacksolves,
+							bool _reuse,
+							bool _unroll,
+							const std::string& _id
+							);
+
+		/** \todo DOC */
+		returnValue init(	unsigned _nRows,
+							unsigned _nCols,
+							unsigned _nBacksolves,
+							unsigned _nRightHandSides,
 							bool _reuse,
 							bool _unroll,
 							const std::string& _id
@@ -199,6 +215,22 @@ class ExportLinearSolver : public ExportAlgorithm
 		returnValue setReuse( const bool& reuse );
 		
 		
+		/** Returns a boolean that is true when an extra algorithm will be exported for solving a transposed linear system based on reuse.
+		 *
+		 *  \return A boolean that is true when an extra algorithm will be exported for solving a transposed linear system based on reuse.
+		 */
+		bool getTranspose() const;
+
+
+		/** Sets the boolean that is true when an extra algorithm will be exported for solving a transposed linear system based on reuse.
+		 *
+		 * 	@param[in] transpose		The new value of this boolean.
+		 *
+		 *  \return SUCCESSFUL_RETURN
+		 */
+		returnValue setTranspose( const bool& transpose );
+
+
 		/** Returns a boolean that is true when the exported code for the linear solver needs to be unrolled
 		 * 	completely.
 		 *
@@ -232,7 +264,7 @@ class ExportLinearSolver : public ExportAlgorithm
 		 * 			the reuse of previous results.
 		 */
 		const std::string getNameSolveReuseFunction(); 
-
+		const std::string getNameSolveTransposeReuseFunction();
 
 	//
     // PROTECTED MEMBER FUNCTIONS:
@@ -246,11 +278,13 @@ class ExportLinearSolver : public ExportAlgorithm
     
 		bool UNROLLING;						/**< The boolean that defines the unrolling. */
 		bool REUSE;							/**< The boolean that defines the reuse. */
+		bool TRANSPOSE;
 		uint dim;									/**< The dimensions of the linear system. */
 		
 		unsigned nRows;								/**< Number of rows of matrix A. */
 		unsigned nCols;								/**< Number of columns of matrix A. */
 		unsigned nBacksolves;						/**< Number of back-solves. */
+		unsigned nRightHandSides;					/**< Number of back-solves. */
 
 		// DEFINITION OF THE EXPORTVARIABLES
 		ExportVariable A;							/**< Variable containing the matrix of the linear system. */
@@ -259,6 +293,7 @@ class ExportLinearSolver : public ExportAlgorithm
 		ExportFunction solve;						/**< Function that solves the linear system. */
 		ExportFunction solveTriangular;				/**< Function that solves the upper-triangular system. */
 		ExportFunction solveReuse;					/**< Function that solves a linear system with the same matrix, reusing previous results. */
+		ExportFunction solveReuseTranspose;			/**< Function that solves a transposed linear system with the same matrix, reusing previous results. */
 
 		ExportVariable determinant;					/**< Variable containing the matrix determinant. */
 };

@@ -57,6 +57,7 @@ class GaussLegendre6Export : public ImplicitRungeKuttaExport
     // PUBLIC MEMBER FUNCTIONS:
     //
 
+
     private:
 
 		/** Default constructor. 

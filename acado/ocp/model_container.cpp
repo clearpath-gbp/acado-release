@@ -43,6 +43,9 @@ BEGIN_NAMESPACE_ACADO
 
 
 ModelContainer::ModelContainer() {
+	NU = 0;
+	NP = 0;
+	NOD = 0;
 }
 
 
@@ -119,6 +122,12 @@ returnValue ModelContainer::setLinearOutput( const DMatrix& A3_, const std::stri
 }
 
 
+returnValue ModelContainer::setNonlinearFeedback( const DMatrix& C_, const OutputFcn& feedb_ )
+{
+	return modelData.setNonlinearFeedback( C_, feedb_ );
+}
+
+
 uint ModelContainer::addOutput( const OutputFcn& outputEquation_, const DVector& measurements ) {
 	DVector newMeas(measurements);
 	newMeas.append( 1.0 );
@@ -160,6 +169,11 @@ uint ModelContainer::addOutput( const std::string& output, const std::string& di
 								const uint numberMeasurements, const std::string& colInd, const std::string& rowPtr	) {
 	Grid grid( 0.0, 1.0, (int)numberMeasurements + 1 );
 	return modelData.addOutput( output, diffs_output, dim, grid, colInd, rowPtr );
+}
+
+
+returnValue ModelContainer::getIntegrationGrid( Grid& _grid ) const {
+	return modelData.getIntegrationGrid( _grid );
 }
 
 
@@ -231,17 +245,20 @@ uint ModelContainer::getNXA( ) const
 
 uint ModelContainer::getNU( ) const
 {
+	if( NU > 0 ) return NU;
 	return modelData.getNU();
 }
 
 
 uint ModelContainer::getNP( ) const
 {
+	if( NP > 0 ) return NP;
 	return modelData.getNP();
 }
 
 uint ModelContainer::getNOD( ) const
 {
+	if( NOD > 0 ) return NOD;
 	return modelData.getNOD();
 }
 
@@ -255,6 +272,27 @@ uint ModelContainer::getN( ) const
 returnValue ModelContainer::setN( const uint N_ )
 {
 	modelData.setN( N_ );
+	return SUCCESSFUL_RETURN;
+}
+
+returnValue ModelContainer::setNU( const uint NU_ )
+{
+	NU = NU_;
+	modelData.setNU( NU );
+	return SUCCESSFUL_RETURN;
+}
+
+returnValue ModelContainer::setNP( const uint NP_ )
+{
+	NP = NP_;
+	modelData.setNP( NP );
+	return SUCCESSFUL_RETURN;
+}
+
+returnValue ModelContainer::setNOD( const uint NOD_ )
+{
+	NOD = NOD_;
+	modelData.setNOD( NOD );
 	return SUCCESSFUL_RETURN;
 }
 

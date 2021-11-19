@@ -59,8 +59,9 @@ ExportModule::~ExportModule( )
 returnValue ExportModule::setupOptions( )
 {
 	addOption( HESSIAN_APPROXIMATION,       GAUSS_NEWTON    );
+	addOption( HESSIAN_REGULARIZATION, 		BLOCK_REG 		);
 	addOption( CG_CONDENSED_HESSIAN_CHOLESKY, EXTERNAL		);
-	addOption( DISCRETIZATION_TYPE,         SINGLE_SHOOTING );
+	addOption( DISCRETIZATION_TYPE,         MULTIPLE_SHOOTING );
 	addOption( INTEGRATOR_TYPE,             INT_RK4         );
 	addOption( DYNAMIC_SENSITIVITY,         FORWARD         );
 	addOption( LINEAR_ALGEBRA_SOLVER,       GAUSS_LU        );
@@ -69,13 +70,16 @@ returnValue ExportModule::setupOptions( )
 	addOption( MEASUREMENT_GRID, 			OFFLINE_GRID	);
 	addOption( INTEGRATOR_DEBUG_MODE, 		0				);
 	addOption( IMPLICIT_INTEGRATOR_MODE,	IFTR 			);
+//	addOption( LIFTED_INTEGRATOR_MODE,		1 				);
+	addOption( LIFTED_GRADIENT_UPDATE, 		false			);
 	addOption( IMPLICIT_INTEGRATOR_NUM_ITS,	5				);
 	addOption( IMPLICIT_INTEGRATOR_NUM_ITS_INIT, 0			);
 	addOption( SPARSE_QP_SOLUTION,          FULL_CONDENSING );
+	addOption( CONDENSING_BLOCK_SIZE,       0 				);
 	addOption( FIX_INITIAL_STATE,           true         	);
 	addOption( QP_SOLVER,                   QP_QPOASES      );
 	addOption( MAX_NUM_QP_ITERATIONS,       -1              );
-	addOption( HOTSTART_QP,                 false        	);
+	addOption( HOTSTART_QP,                 true        	);
 	addOption( LEVENBERG_MARQUARDT,         0.0             );
 	addOption( GENERATE_TEST_FILE,          true         	);
 	addOption( GENERATE_MAKE_FILE,          true         	);
@@ -97,6 +101,7 @@ returnValue ExportModule::setupOptions( )
 	addOption( CG_FORCE_DIAGONAL_HESSIAN,        NO         );
 
 	addOption( CG_MODULE_NAME, "acado"						);
+    addOption( CG_MODULE_PREFIX, "ACADO"                	);
 	addOption( CG_EXPORT_FOLDER_NAME, "acado_export"		);
 
 	return SUCCESSFUL_RETURN;

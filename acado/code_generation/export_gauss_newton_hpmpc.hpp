@@ -25,8 +25,8 @@
 
 /**
  *    \file include/acado/code_generation/export_gauss_newton_hpmpc.hpp
- *    \author Milan Vukov
- *    \date 2014
+ *    \author Milan Vukov, Niels van Duijkeren
+ *    \date 2016
  */
 
 #ifndef ACADO_TOOLKIT_EXPORT_GAUSS_NEWTON_HPMPC_HPP
@@ -38,13 +38,13 @@ BEGIN_NAMESPACE_ACADO
 
 class ExportHpmpcInterface;
 
-/** 
+/**
  *	\brief TBD
  *
  *	\ingroup NumericalAlgorithms
  *
  *  TBD
- * 
+ *
  *	\author Milan Vukov
  */
 class ExportGaussNewtonHpmpc : public ExportNLPSolver
@@ -167,6 +167,11 @@ private:
 	/** \name Constraint evaluation */
 	/** @{ */
 	ExportFunction evaluateConstraints;
+	ExportFunction setStagePac;
+	unsigned qpDimHtot;
+	unsigned qpDimH;
+	unsigned qpDimHN;
+	std::vector< unsigned > qpConDim;
 	/** @} */
 
 	/** \name RTI related */
@@ -193,11 +198,17 @@ private:
 	ExportVariable evLbValues, evUbValues;
 	ExportVariable qpLb, qpUb;
 
+	ExportVariable qpLbA, qpUbA;
+
+	ExportVariable sigmaN;
+
 	ExportVariable qpLambda, qpMu, qpSlacks;
 
 	ExportVariable nIt;
 
-	std::tr1::shared_ptr< ExportHpmpcInterface > qpInterface;
+//	ExportVariable qpWork;
+
+	std::shared_ptr< ExportHpmpcInterface > qpInterface;
 	/** @} */
 };
 

@@ -197,6 +197,15 @@ public:
     returnValue setLinearOutput( const DMatrix& M3_, const DMatrix& A3_, const std::string& _rhs3, const std::string& _diffs_rhs3 );
 
 
+    /** .
+     *
+     *	@param[in] 		.
+     *
+     *	\return SUCCESSFUL_RETURN
+     */
+    returnValue setNonlinearFeedback( const DMatrix& C_, const OutputFcn& feedb_ );
+
+
     /** Assigns the model to be used by the integrator.
      *
      *	@param[in] _rhs_ODE				Name of the function, evaluating the ODE right-hand side.
@@ -284,6 +293,15 @@ public:
 						const uint numberMeasurements, const std::string& colInd, const std::string& rowPtr	);
 
 
+    /** Gets integration grid.
+     *
+     *	@param[in] _grid	Integration grid.
+     *
+     *	\return SUCCESSFUL_RETURN
+     */
+    returnValue getIntegrationGrid(  Grid& _grid	) const;
+
+
     /** Sets integration grid.
      *
      *	@param[in] _ocpGrid		Evaluation grid for optimal control.
@@ -368,6 +386,11 @@ public:
     returnValue setN( const uint N_ );
 
 
+    returnValue setNU( const uint NU_ );
+    returnValue setNP( const uint NP_ );
+    returnValue setNOD( const uint NOD_ );
+
+
     /** Returns the dimensions of the different output functions.
      *
      *  \return dimensions of the different output functions.
@@ -411,6 +434,10 @@ public:
     // DATA MEMBERS:
     //
     protected:
+
+    	 uint NU;										/**< Number of control inputs. */
+    	 uint NP;										/**< Number of parameters. */
+    	 uint NOD;										/**< Number of online data values. */
 
      	 ModelData modelData;			/**< The model data. */
 };

@@ -25,7 +25,7 @@
 
 /**
  *    \file include/acado/code_generation/export_nlp_solver.hpp
- *    \author Milan Vukov
+ *    \author Milan Vukov, Rien Quirynen
  *    \date 2012 - 2013
  */
 
@@ -168,6 +168,11 @@ public:
 	 * */
 	unsigned getNumComplexConstraints( void );
 
+    /** Get the number of path constraints.
+     *  \return Number of path constraints
+     * */
+    unsigned getNumPathConstraints( void );
+
 	/** Return type of weighting matrices.
 	 *  \return Type of weighting matrices. */
 	unsigned weightingMatricesType( void ) const;
@@ -257,7 +262,7 @@ protected:
 	// lagrange multipliers
 	ExportVariable mu;
 
-	ExportVariable objS, objSEndTerm;
+	ExportVariable objg, objS, objSEndTerm;
 	ExportVariable objEvFx, objEvFu, objEvFxEnd; // aliasing
 	ExportVariable objEvFxx, objEvFxu, objEvFuu, objEvFxxEnd; // aliasing
 
@@ -294,12 +299,13 @@ protected:
 
 	ExportVariable pacEvH;
 	ExportVariable pacEvHx, pacEvHu, pacEvHxd;
+	ExportVariable pacEvDDH;
 	/** @} */
 
 	/** \name Evaluation of point constraints */
 	/** @{ */
 	unsigned dimPocH;
-	std::vector< std::tr1::shared_ptr< ExportAcadoFunction > > evaluatePointConstraints;
+	std::vector< std::shared_ptr< ExportAcadoFunction > > evaluatePointConstraints;
 	DVector lbPointConValues, ubPointConValues;
 
 	std::vector< DVector > pocLbStack, pocUbStack;
@@ -350,21 +356,22 @@ enum ExportNLPType
 {
 	GAUSS_NEWTON_CONDENSED,
 	GAUSS_NEWTON_CN2,
-	GAUSS_NEWTON_CN2_NEW,
-	EXACT_HESSIAN_CN2,
-	EXACT_HESSIAN_QPDUNES,
+	GAUSS_NEWTON_BLOCK_QPDUNES,
+	GAUSS_NEWTON_BLOCK_FORCES,
 	GAUSS_NEWTON_CN2_FACTORIZATION,
 	GAUSS_NEWTON_FORCES,
 	GAUSS_NEWTON_QPDUNES,
-	GAUSS_NEWTON_QPDUNES2,
-	GAUSS_NEWTON_HPMPC
+	GAUSS_NEWTON_HPMPC,
+    GAUSS_NEWTON_GENERIC,
+	EXACT_HESSIAN_CN2,
+	EXACT_HESSIAN_QPDUNES
 };
 
 /** Factory for creation of exported NLP/OCP solvers. */
 typedef ExportAlgorithmFactory<ExportNLPSolver, ExportNLPType> NLPSolverFactory;
 
 /** Shared pointer to an NLP solver. */
-typedef std::tr1::shared_ptr< ExportNLPSolver > ExportNLPSolverPtr;
+typedef std::shared_ptr< ExportNLPSolver > ExportNLPSolverPtr;
 
 CLOSE_NAMESPACE_ACADO
 

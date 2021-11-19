@@ -72,6 +72,10 @@ WN = acado.BMatrix(WN_mat);
 ocp.minimizeLSQ( W, h );
 ocp.minimizeLSQEndTerm( WN, hN );
 
+Slx = [0 0 0 0 0 0 0.01 0];
+Slu = [0 0];
+ocp.minimizeLSQLinearTerms( Slx, Slu );
+
 ocp.subjectTo( -10.0 <= [uC;uL] <= 10.0 );
 ocp.subjectTo( -100.0 <= [duC;duL] <= 100.0 );
 ocp.subjectTo( -0.3 <= vC <= 0.3 );
@@ -90,8 +94,8 @@ mpc.set( 'LEVENBERG_MARQUARDT', 		 1e-10				);
 % mpc.set( 'GENERATE_SIMULINK_INTERFACE', 'YES'               );
 
 if EXPORT
-    copyfile('../../../../../../external_packages/qpoases', 'export_MPC/qpoases')
     mpc.exportCode( 'export_MPC' );
+    copyfile('../../../../../../external_packages/qpoases', 'export_MPC/qpoases', 'f')
     
     cd export_MPC
     make_acado_solver('../acado_MPCstep')
@@ -109,7 +113,7 @@ Uref = zeros(N,n_U);
 input.u = Uref;
 
 input.y = [Xref(1:N,:) Uref];
-input.yN = Xref(N,:).';
+input.yN = Xref(N,:);
 
 input.W = diag([1 2e-2 1 2e-2 4e-4 3e-4 1e-3 1e-1 4e-5 3e-5]);
 input.WN = diag([1 2e-2 1 2e-2 4e-4 3e-4 1e-3 1e-1]);
@@ -129,7 +133,7 @@ visualize;
 while time(end) < Tf
     tic
     % Solve NMPC OCP
-    input.x0 = state_sim(end,:).';
+    input.x0 = state_sim(end,:);
     output = acado_MPCstep(input);
     
     % Save the MPC step

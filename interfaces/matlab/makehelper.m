@@ -144,14 +144,20 @@ VERBOSE = 0;
     
     %COMPILER FLAGS
     if (ispc)
+        comp = mex.getCompilerConfigurations('C++','Selected');
+        ver = comp.Version;
         % Microsoft Visual C++ (express) compiler
-        CPPFLAGS  = [ IFLAGS, ' -DWIN32 -D__cpluplus -D__MATLAB__ -Dsnprintf=_snprintf -Dround=acadoRound -O ' ];    
+        if( str2num(ver) < 14 )
+            CPPFLAGS  = [ IFLAGS, ' -DWIN32 -D__cpluplus -D__MATLAB__ -Dsnprintf=_snprintf -Dround=acadoRound -O ' ];
+        else 
+            CPPFLAGS  = [ IFLAGS, ' -DWIN32 -D__cpluplus -D__MATLAB__ -Dround=acadoRound -O ' ];
+        end
     elseif (ismac)
         % Other compilers
-        CPPFLAGS  = [ IFLAGS, ' LDFLAGS=''\$LDFLAGS -stdlib=libstdc++'' CXXFLAGS=''\$CXXFLAGS -fPIC -stdlib=libstdc++'' -DLINUX -D__cpluplus -D__MATLAB__ -O ' ];
+        CPPFLAGS  = [ IFLAGS, ' LDFLAGS=''\$LDFLAGS -stdlib=libc++'' CXXFLAGS=''\$CXXFLAGS -fPIC -stdlib=libc++ -std=c++11'' -DLINUX -D__cpluplus -D__MATLAB__ -Dregister="" -O ' ]
     else
         % Other compilers
-        CPPFLAGS  = [ IFLAGS, ' CXXFLAGS=''\$CXXFLAGS -fPIC -Wno-c++11-compat -Wno-unused-comparison'' -DLINUX -D__cpluplus -D__MATLAB__ -O ' ];
+        CPPFLAGS  = [ IFLAGS, ' CXXFLAGS=''\$CXXFLAGS -fPIC -std=c++11 -Wno-unused-comparison'' -DLINUX -D__cpluplus -D__MATLAB__ -Dregister="" -O ' ];
     end
     counter = 0 ;
     
@@ -329,22 +335,23 @@ function [] = execute_command (s, full_logging, shorthand, progress)
         %end
         fprintf (1, '*') ;
     end
-    eval (s) ;
+    eval(s);
 end
 
 
 function [force_compilation] = check_to_compile (src, bin, force_make)
 
+    force_compilation = 1;
     d_bin = dir (bin);
     if (force_make || isempty (d_bin))  
         force_compilation = 1;
     else
         d_src = dir (src);
         try
+          force_compilation = (d_bin.datenum < d_src.datenum);
           force_compilation = (datenum(d_bin.date) < datenum(d_src.date)) ;
         catch
-          force_compilation = 1;
-          disp('Warning: datenum is not working on your system. See http://www.acadotoolkit.org/matlab/faq/datenum.php');
+%           disp('Warning: datenum is not working on your system. See http://www.acadotoolkit.org/matlab/faq/datenum.php');
         end
     end
     

@@ -214,6 +214,15 @@ public:
       *
       *	\return SUCCESSFUL_RETURN
       */
+     returnValue setNonlinearFeedback( const DMatrix& C_, const OutputFcn& feedb_ );
+
+
+     /** .
+      *
+      *	@param[in] 		.
+      *
+      *	\return SUCCESSFUL_RETURN
+      */
      returnValue setLinearOutput( 	const DMatrix& M3_, const DMatrix& A3_,
     		 	 	 	 			const std::string& _rhs3,
     		 	 	 	 			const std::string& _diffs3 );
@@ -295,6 +304,15 @@ public:
       *
       *	\return SUCCESSFUL_RETURN
       */
+     returnValue getNonlinearFeedback( DMatrix& C_, OutputFcn& feedb_ ) const;
+
+
+     /** .
+      *
+      *	@param[in] 		.
+      *
+      *	\return SUCCESSFUL_RETURN
+      */
      returnValue getLinearOutput( DMatrix& M3_, DMatrix& A3_ ) const;
 
 
@@ -336,18 +354,21 @@ public:
       *  \return Number of control inputs
       */
      uint getNU( ) const;
+     returnValue setNU( const uint NU_ );
 
      /** Returns number of parameters.
       *
       *  \return Number of parameters
       */
      uint getNP( ) const;
+     returnValue setNP( const uint NP_ );
 
      /** Returns number of parameters.
       *
       *  \return Number of parameters
       */
      uint getNOD( ) const;
+     returnValue setNOD( const uint NOD_ );
 
      /** Returns number of shooting intervals.
       *
@@ -457,6 +478,9 @@ public:
      DMatrix M3;
      DMatrix A3;
      OutputFcn rhs3;
+
+     DMatrix C;
+     OutputFcn feedb;
 
      // NARX model:
      uint delay;

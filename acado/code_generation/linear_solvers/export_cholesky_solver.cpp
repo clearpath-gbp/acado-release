@@ -74,6 +74,10 @@ returnValue ExportCholeskySolver::setup()
 
 	if (REUSE == true)
 		return RET_NOT_IMPLEMENTED_YET;
+	if( TRANSPOSE ) return ACADOERROR( RET_NOT_YET_IMPLEMENTED );
+
+	if (nRightHandSides > 0)
+		return RET_NOT_IMPLEMENTED_YET;
 
 	ExportVariable sum("sum", 1, 1, REAL, ACADO_LOCAL, true);
 	ExportVariable div("div", 1, 1, REAL, ACADO_LOCAL, true);

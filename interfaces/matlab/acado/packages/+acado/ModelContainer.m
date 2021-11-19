@@ -78,6 +78,11 @@ classdef ModelContainer < handle
         A3;
         fun3;
         linearOutput = 0;
+        
+        % Nonlinear feedback system
+        C;
+        phi;
+        nonlinearFeedback = 0;
     end
     
     methods
@@ -176,6 +181,27 @@ classdef ModelContainer < handle
         end
         
         
+        function setNonlinearFeedback(obj, varargin)
+            
+            global ACADO_;
+            if (nargin == 3 && isa(varargin{1}, 'numeric') && isa(varargin{2}, 'acado.Expression'))
+                if ~isvector(varargin{2})
+                    error('ERROR: Please provide a vector of expressions instead of a matrix.');
+                end
+                % setNonlinearFeedback( C, phi );
+                obj.C = acado.Matrix(varargin{1});
+                obj.phi = acado.OutputFcn();
+                ACADO_.helper.removeInstruction(obj.phi);
+                obj.phi(:) = varargin{2};
+                
+            else
+                error('ERROR: Invalid setNonlinearFeedback.');
+                
+            end
+            obj.nonlinearFeedback = 1;
+        end
+        
+        
         function setDimensions(obj, varargin)
             
             if (nargin == 5 && isa(varargin{1}, 'numeric') && isa(varargin{2}, 'numeric') && isa(varargin{3}, 'numeric') && isa(varargin{4}, 'numeric'))
@@ -218,6 +244,27 @@ classdef ModelContainer < handle
             
         end
         
+        function setNOD(obj, NOD)
+            if( ~isnumeric(NOD) || NOD < 0 )
+                error('ERROR: Invalid call to setNOD.');
+            end
+           obj.NOD = NOD; 
+        end
+        
+        function setNP(obj, NP)
+            if( ~isnumeric(NP) || NP < 0 )
+                error('ERROR: Invalid call to setNP.');
+            end
+           obj.NP = NP; 
+        end
+        
+        function setNU(obj, NU)
+            if( ~isnumeric(NU) || NU < 0 )
+                error('ERROR: Invalid call to setNU.');
+            end
+           obj.NU = NU; 
+        end
+        
         
         function setIntegrationGrid(obj, varargin)
            
@@ -243,6 +290,15 @@ classdef ModelContainer < handle
                     else
                         fprintf(cppobj.fileMEX,sprintf('    %s.setLinearInput( %s, %s );\n', obj.name, obj.A1.name, obj.B1.name));
                     end
+                end
+                if (~isempty(obj.NOD))
+                    fprintf(cppobj.fileMEX,sprintf('    %s.setNOD( %s );\n', obj.name, num2str(obj.NOD)));
+                end
+                if (~isempty(obj.NP))
+                    fprintf(cppobj.fileMEX,sprintf('    %s.setNP( %s );\n', obj.name, num2str(obj.NP)));
+                end
+                if (~isempty(obj.NU))
+                    fprintf(cppobj.fileMEX,sprintf('    %s.setNU( %s );\n', obj.name, num2str(obj.NU)));
                 end
                 if (~isempty(obj.model))
                     if (~isempty(obj.model))
@@ -270,6 +326,10 @@ classdef ModelContainer < handle
                     else
                         fprintf(cppobj.fileMEX,sprintf('    %s.setLinearOutput( %s, %s );\n', obj.name, obj.A3.name, obj.fun3.name));
                     end
+                end
+                if obj.nonlinearFeedback
+                    obj.phi.getInstructions(cppobj, get);
+                    fprintf(cppobj.fileMEX,sprintf('    %s.setNonlinearFeedback( %s, %s );\n', obj.name, obj.C.name, obj.phi.name));
                 end
                 
                 fprintf(cppobj.fileMEX,'\n');

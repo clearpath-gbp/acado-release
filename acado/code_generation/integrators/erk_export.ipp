@@ -43,16 +43,21 @@ inline ExplicitRungeKuttaExport* createExplicitRungeKuttaExport(	UserInteraction
 {
 	int sensGen;
 	_userInteraction->get( DYNAMIC_SENSITIVITY, sensGen );
-	if ( (ExportSensitivityType)sensGen == FORWARD || (ExportSensitivityType)sensGen == NO_SENSITIVITY ) {
+	int liftedGen;
+	_userInteraction->get( IMPLICIT_INTEGRATOR_MODE, liftedGen );
+	if ( (ImplicitIntegratorMode)liftedGen == LIFTED && ((ExportSensitivityType)sensGen == FORWARD || (ExportSensitivityType)sensGen == INEXACT) ) {
+		return new LiftedERKExport(_userInteraction, _commonHeaderName);
+	}
+	else if ( (ExportSensitivityType)sensGen == FORWARD || (ExportSensitivityType)sensGen == NO_SENSITIVITY ) {
 		return new ExplicitRungeKuttaExport(_userInteraction, _commonHeaderName);
 	}
 	else if( (ExportSensitivityType)sensGen == BACKWARD ) {
 		return new AdjointERKExport(_userInteraction, _commonHeaderName);
 	}
-	else if( (ExportSensitivityType)sensGen == FORWARD_OVER_BACKWARD ) {
+	else if( (ExportSensitivityType)sensGen == FORWARD_OVER_BACKWARD || (ExportSensitivityType)sensGen == SYMMETRIC_FB ) {
 		return new ForwardOverBackwardERKExport(_userInteraction, _commonHeaderName);
 	}
-	else if( (ExportSensitivityType)sensGen == THREE_SWEEPS ) {
+	else if( (ExportSensitivityType)sensGen == SYMMETRIC ) {
 		return new ThreeSweepsERKExport(_userInteraction, _commonHeaderName);
 	}
 	else {

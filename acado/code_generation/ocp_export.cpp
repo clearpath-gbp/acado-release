@@ -35,8 +35,14 @@
 #include <acado/code_generation/export_auxiliary_functions.hpp>
 #include <acado/code_generation/export_hessian_regularization.hpp>
 #include <acado/code_generation/export_common_header.hpp>
+#include <acado/code_generation/export_data_internal.hpp>
+
+#include <acado/code_generation/export_gauss_newton_block_cn2.hpp>
+#include <acado/code_generation/export_gauss_newton_forces.hpp>
 
 #include <acado/code_generation/templates/templates.hpp>
+
+#include <acado/code_generation/integrators/rk_export.hpp>
 
 #include <acado/objective/objective.hpp>
 #include <acado/ocp/ocp.hpp>
@@ -67,8 +73,14 @@ returnValue OCPexport::exportCode(	const std::string& dirName,
 {
 	int qpSolver;
 	get(QP_SOLVER, qpSolver);
-	string moduleName;
+    
+	string moduleName, modulePrefix;
 	get(CG_MODULE_NAME, moduleName);
+    get(CG_MODULE_PREFIX, modulePrefix);
+    
+    ExportDataInternal::fcnPrefix = moduleName;
+    ExportStatement::fcnPrefix = moduleName;
+    ExportStatement::varPrefix = modulePrefix;
 
 	acadoPrintCopyrightNotice( "Code Generation Tool" );
 
@@ -138,7 +150,8 @@ returnValue OCPexport::exportCode(	const std::string& dirName,
 	ExportAuxiliaryFunctions eaf(
 			dirName + string("/") + moduleName + "_auxiliary_functions.h",
 			dirName + string("/") + moduleName + "_auxiliary_functions.c",
-			moduleName
+			moduleName,
+            modulePrefix
 			);
 	eaf.configure();
 	eaf.exportCode();
@@ -148,27 +161,71 @@ returnValue OCPexport::exportCode(	const std::string& dirName,
 	//
 	int generateMakeFile;
 	get(GENERATE_MAKE_FILE, generateMakeFile);
+	int hessianApproximation;
+	get( HESSIAN_APPROXIMATION, hessianApproximation );
+	int hessianRegularization;
+	get( HESSIAN_REGULARIZATION, hessianRegularization );
 
 	if ( (bool)generateMakeFile == true )
 	{
+        ExportTemplatedFile makefile;
+        makefile.dictionary[ "@MODULE_NAME@" ] = moduleName;
+        makefile.dictionary[ "@MODULE_PREFIX@" ] = modulePrefix;
 		str = dirName + "/Makefile";
 
 		switch ( (QPSolverName)qpSolver )
 		{
 			case QP_QPOASES:
-				acadoCopyTemplateFile(MAKEFILE_QPOASES, str, "#", true);
+				if ( (HessianApproximationMode)hessianApproximation == EXACT_HESSIAN ) {
+					//acadoCopyTemplateFile(MAKEFILE_EH_QPOASES, str, "#", true);
+					makefile.setup( MAKEFILE_EH_QPOASES,str,"","real_t","int",16,"#" );
+				}
+				else {
+					//acadoCopyTemplateFile(MAKEFILE_QPOASES, str, "#", true);
+					makefile.setup( MAKEFILE_QPOASES,str,"","real_t","int",16,"#" );
+				}
+                makefile.configure();
+                makefile.exportCode();
+				break;
+
+			case QP_QPOASES3:
+				if ( (HessianApproximationMode)hessianApproximation == EXACT_HESSIAN ) {
+					//acadoCopyTemplateFile(MAKEFILE_EH_QPOASES3, str, "#", true);
+					makefile.setup( MAKEFILE_EH_QPOASES3,str,"","real_t","int",16,"#" );
+				}
+				else {
+					//acadoCopyTemplateFile(MAKEFILE_QPOASES3, str, "#", true);
+					makefile.setup( MAKEFILE_QPOASES3,str,"","real_t","int",16,"#" );
+				}
+                makefile.configure();
+                makefile.exportCode();
 				break;
 
 			case QP_FORCES:
-				acadoCopyTemplateFile(MAKEFILE_FORCES, str, "#", true);
+				//acadoCopyTemplateFile(MAKEFILE_FORCES, str, "#", true);
+                makefile.setup( MAKEFILE_FORCES,str,"","real_t","int",16,"#" );
+                makefile.configure();
+                makefile.exportCode();
 				break;
 
 			case QP_QPDUNES:
-				acadoCopyTemplateFile(MAKEFILE_QPDUNES, str, "#", true);
+				if ( (HessianApproximationMode)hessianApproximation == EXACT_HESSIAN ) {
+					//acadoCopyTemplateFile(MAKEFILE_EH_QPDUNES, str, "#", true);
+					makefile.setup( MAKEFILE_EH_QPDUNES,str,"","real_t","int",16,"#" );
+				}
+				else {
+					//acadoCopyTemplateFile(MAKEFILE_QPDUNES, str, "#", true);
+					makefile.setup( MAKEFILE_QPDUNES,str,"","real_t","int",16,"#" );
+				}
+                makefile.configure();
+                makefile.exportCode();
 				break;
 
 			case QP_HPMPC:
-				acadoCopyTemplateFile(MAKEFILE_HPMPC, str, "#", true);
+				//acadoCopyTemplateFile(MAKEFILE_HPMPC, str, "#", true);
+                makefile.setup( MAKEFILE_HPMPC,str,"","real_t","int",16,"#" );
+                makefile.configure();
+                makefile.exportCode();
 				break;
 
 			default:
@@ -184,54 +241,122 @@ returnValue OCPexport::exportCode(	const std::string& dirName,
 	get(GENERATE_TEST_FILE, generateTestFile);
 	string testFileName = dirName + "/test.c";
 	if ((bool) generateTestFile == true)
-		acadoCopyTemplateFile(DUMMY_TEST_FILE, testFileName, "", true);
+    {
+		//acadoCopyTemplateFile(DUMMY_TEST_FILE, testFileName, "", true);
+        ExportTemplatedFile testFile;
+        testFile.dictionary[ "@MODULE_NAME@" ] = moduleName;
+        testFile.dictionary[ "@MODULE_PREFIX@" ] = modulePrefix;
+
+        testFile.setup( DUMMY_TEST_FILE,testFileName );
+        testFile.configure();
+        testFile.exportCode();
+    }
 
 	//
 	// Generate MATLAB MEX interface
 	//
+	int qpSolution;
+	get(SPARSE_QP_SOLUTION, qpSolution);
 	int generateMexInterface;
 	get(GENERATE_MATLAB_INTERFACE, generateMexInterface);
-	int hessianApproximation;
-	get( HESSIAN_APPROXIMATION, hessianApproximation );
 	if ( (bool)generateMexInterface == true )
 	{
+        ExportTemplatedFile mexInterface;
+        mexInterface.dictionary[ "@MODULE_NAME@" ] = moduleName;
+        mexInterface.dictionary[ "@MODULE_PREFIX@" ] = modulePrefix;
 		str = dirName + "/" + moduleName + "_solver_mex.c";
 
 		if ( (HessianApproximationMode)hessianApproximation == EXACT_HESSIAN ) {
-			acadoCopyTemplateFile(EH_SOLVER_MEX, str, "", true);
+            //acadoCopyTemplateFile(EH_SOLVER_MEX, str, "", true);
+            mexInterface.setup( EH_SOLVER_MEX,str  );
+            mexInterface.configure();
+            mexInterface.exportCode();
 		}
 		else {
-			acadoCopyTemplateFile(SOLVER_MEX, str, "", true);
+			//acadoCopyTemplateFile(SOLVER_MEX, str, "", true);
+            mexInterface.setup( SOLVER_MEX,str  );
+            mexInterface.configure();
+            mexInterface.exportCode();
 		}
 
+        ExportTemplatedFile mexInterfaceMake;
+        mexInterfaceMake.dictionary[ "@MODULE_NAME@" ] = moduleName;
+        mexInterfaceMake.dictionary[ "@MODULE_PREFIX@" ] = modulePrefix;
 		str = dirName + "/make_" + moduleName + "_solver.m";
 
 		switch ( (QPSolverName)qpSolver )
 		{
 		case QP_QPOASES:
 			if ( (HessianApproximationMode)hessianApproximation == EXACT_HESSIAN ) {
-				acadoCopyTemplateFile(MAKE_MEX_EH_QPOASES, str, "%", true);
+				//acadoCopyTemplateFile(MAKE_MEX_EH_QPOASES, str, "%", true);
+                mexInterfaceMake.setup( MAKE_MEX_EH_QPOASES,str, "","real_t","int",16,"%" );
+                mexInterfaceMake.configure();
+                mexInterfaceMake.exportCode();
 			}
 			else {
-				acadoCopyTemplateFile(MAKE_MEX_QPOASES, str, "%", true);
+				//acadoCopyTemplateFile(MAKE_MEX_QPOASES, str, "%", true);
+                mexInterfaceMake.setup( MAKE_MEX_QPOASES,str, "","real_t","int",16,"%" );
+                mexInterfaceMake.configure();
+                mexInterfaceMake.exportCode();
+			}
+			break;
+
+		case QP_QPOASES3:
+			if ( (HessianApproximationMode)hessianApproximation == EXACT_HESSIAN ) {
+				//acadoCopyTemplateFile(MAKE_MEX_EH_QPOASES3, str, "%", true);
+                mexInterfaceMake.setup( MAKE_MEX_EH_QPOASES3,str, "","real_t","int",16,"%" );
+                mexInterfaceMake.configure();
+                mexInterfaceMake.exportCode();
+			}
+			else {
+				//acadoCopyTemplateFile(MAKE_MEX_QPOASES3, str, "%", true);
+                mexInterfaceMake.setup( MAKE_MEX_QPOASES3,str, "","real_t","int",16,"%" );
+                mexInterfaceMake.configure();
+                mexInterfaceMake.exportCode();
 			}
 			break;
 
 		case QP_FORCES:
-			acadoCopyTemplateFile(MAKE_MEX_FORCES, str, "%", true);
+			//acadoCopyTemplateFile(MAKE_MEX_FORCES, str, "%", true);
+            mexInterfaceMake.setup( MAKE_MEX_FORCES,str, "","real_t","int",16,"%" );
+            mexInterfaceMake.configure();
+            mexInterfaceMake.exportCode();
 			break;
 
 		case QP_QPDUNES:
 			if ( (HessianApproximationMode)hessianApproximation == EXACT_HESSIAN ) {
-				acadoCopyTemplateFile(MAKE_MEX_EH_QPDUNES, str, "%", true);
+				//acadoCopyTemplateFile(MAKE_MEX_EH_QPDUNES, str, "%", true);
+                mexInterfaceMake.setup( MAKE_MEX_EH_QPDUNES,str, "","real_t","int",16,"%" );
+			mexInterfaceMake.configure();
+                mexInterfaceMake.exportCode();
+			}
+			else if ( (SparseQPsolutionMethods)qpSolution == BLOCK_CONDENSING_N2 ) {
+				acadoCopyTemplateFile(MAKE_MEX_BLOCK_QPDUNES, str, "%", true);
 			}
 			else {
-				acadoCopyTemplateFile(MAKE_MEX_QPDUNES, str, "%", true);
+				//acadoCopyTemplateFile(MAKE_MEX_QPDUNES, str, "%", true);
+                mexInterfaceMake.setup( MAKE_MEX_QPDUNES,str, "","real_t","int",16,"%" );
+                mexInterfaceMake.configure();
+                mexInterfaceMake.exportCode();
 			}
 			break;
-			
-		case QP_QPDUNES2:
 
+		
+		case QP_HPMPC:
+			if ( (HessianApproximationMode)hessianApproximation == EXACT_HESSIAN ) {
+				//acadoCopyTemplateFile(MAKE_MEX_EH_QPDUNES, str, "%", true);
+				ACADOWARNINGTEXT(RET_NOT_IMPLEMENTED_YET, "MEX interface for HMPC with exact Hessians is not yet available.");
+			}
+			else {
+				//acadoCopyTemplateFile(MAKE_MEX_QPDUNES, str, "%", true);
+                	mexInterfaceMake.setup( MAKE_MEX_HPMPC,str, "","real_t","int",16,"%" );
+                	mexInterfaceMake.configure();
+                	mexInterfaceMake.exportCode();
+			}
+			break;
+
+        case QP_GENERIC:
+            break;
 		default:
 			ACADOWARNINGTEXT(RET_NOT_IMPLEMENTED_YET, "MEX interface is not yet available.");
 			break;
@@ -244,10 +369,10 @@ returnValue OCPexport::exportCode(	const std::string& dirName,
 	int generateSimulinkInterface;
 	get(GENERATE_SIMULINK_INTERFACE, generateSimulinkInterface);
 	if ((bool) generateSimulinkInterface == true)
-	{
-		if (!((QPSolverName)qpSolver == QP_QPOASES || (QPSolverName)qpSolver == QP_QPDUNES))
+	{     
+		if (!((QPSolverName)qpSolver == QP_QPOASES || (QPSolverName)qpSolver == QP_QPOASES3 || (QPSolverName)qpSolver == QP_QPDUNES|| (QPSolverName)qpSolver == QP_HPMPC))
 			ACADOWARNINGTEXT(RET_NOT_IMPLEMENTED_YET,
-					"At the moment, Simulink interface is available only with qpOASES and qpDUNES based OCP solvers.");
+					"At the moment, Simulink interface is available only with qpOASES, qpOASES3 and qpDUNES based OCP solvers.");
 		else
 		{
 			string makefileName = dirName + "/make_" + moduleName + "_solver_sfunction.m";
@@ -257,14 +382,21 @@ returnValue OCPexport::exportCode(	const std::string& dirName,
 
 			if ((QPSolverName)qpSolver == QP_QPOASES)
 				qpSolverString = "QPOASES";
-			else
+			else if ((QPSolverName)qpSolver == QP_QPOASES3)
+				qpSolverString = "QPOASES3";
+			else if ((QPSolverName)qpSolver == QP_QPDUNES)
 				qpSolverString = "QPDUNES";
-
-			ExportSimulinkInterface esi(makefileName, wrapperHeaderName, wrapperSourceName, moduleName);
+			else
+				qpSolverString = "HPMPC";
 
 			// Get options
 			int useSinglePrecision;
 			get(USE_SINGLE_PRECISION, useSinglePrecision);
+
+			ExportSimulinkInterface esi(makefileName, wrapperHeaderName, wrapperSourceName, moduleName, modulePrefix);
+			if( useSinglePrecision ) {
+				esi = ExportSimulinkInterface(makefileName, wrapperHeaderName, wrapperSourceName, moduleName, modulePrefix, "", "single");
+			}
 
 			int hardcodeConstraintValues;
 			get(CG_HARDCODE_CONSTRAINT_VALUES, hardcodeConstraintValues);
@@ -291,18 +423,35 @@ returnValue OCPexport::exportCode(	const std::string& dirName,
 
 			esi.exportCode();
 		}
-	}
 
+}
 	//
 	// Generate Symmetric EVD code
 	//
-	if ( (HessianApproximationMode)hessianApproximation == EXACT_HESSIAN ) {
+	if ( (HessianApproximationMode)hessianApproximation == EXACT_HESSIAN && (HessianRegularizationMode)hessianRegularization == BLOCK_REG ) {
 //		LOG( LVL_DEBUG ) << "Exporting Hessian regularization code... " << endl;
 		ExportHessianRegularization evd(
 				dirName + string("/") + moduleName + "_hessian_regularization.c",
 				moduleName
 		);
 		evd.configure( ocp.getNX()+ocp.getNU(), 1e-12 );
+		if ( evd.exportCode() != SUCCESSFUL_RETURN )
+			return ACADOERROR( RET_UNABLE_TO_EXPORT_CODE );
+	}
+	else if( (HessianApproximationMode)hessianApproximation == EXACT_HESSIAN && (HessianRegularizationMode)hessianRegularization == CONDENSED_REG ) {
+		//		LOG( LVL_DEBUG ) << "Exporting Hessian regularization code... " << endl;
+		ExportHessianRegularization evd(
+				dirName + string("/") + moduleName + "_hessian_regularization.c",
+				moduleName
+		);
+		int fixInitialState;
+		get(FIX_INITIAL_STATE, fixInitialState);
+		if( (bool)fixInitialState == 1 ) {
+			evd.configure( ocp.getN()*ocp.getNU(), 1e-12 );
+		}
+		else {
+			evd.configure( ocp.getNX()+ocp.getN()*ocp.getNU(), 1e-12 );
+		}
 		if ( evd.exportCode() != SUCCESSFUL_RETURN )
 			return ACADOERROR( RET_UNABLE_TO_EXPORT_CODE );
 	}
@@ -358,7 +507,9 @@ returnValue OCPexport::setup( )
 
 	ocp.setNumberIntegrationSteps( numSteps );
 	// NOTE: This function internally calls setup() function
-	integrator->setModelData( ocp.getModelData() );
+	returnvalue = integrator->setModelData( ocp.getModelData() );
+ 	if ( returnvalue != SUCCESSFUL_RETURN )
+ 		return returnvalue;
 
 	//
 	// Prepare solver export
@@ -378,9 +529,9 @@ returnValue OCPexport::setup( )
 	case FULL_CONDENSING:
 	case CONDENSING:
 
-		if ((QPSolverName)qpSolver != QP_QPOASES)
+		if ( ((QPSolverName)qpSolver != QP_QPOASES) && ((QPSolverName)qpSolver != QP_QPOASES3) )
 			return ACADOERRORTEXT(RET_INVALID_ARGUMENTS,
-					"For condensed solution only qpOASES QP solver is supported");
+					"For condensed solution only qpOASES and qpOASES3 QP solver are supported");
 
 		solver = ExportNLPSolverPtr(
 				NLPSolverFactory::instance().createAlgorithm(this, commonHeaderName, GAUSS_NEWTON_CONDENSED));
@@ -390,9 +541,9 @@ returnValue OCPexport::setup( )
 	case FULL_CONDENSING_N2:
 	case CONDENSING_N2:
 
-		if ((QPSolverName)qpSolver != QP_QPOASES)
+		if ( ((QPSolverName)qpSolver != QP_QPOASES) && ((QPSolverName)qpSolver != QP_QPOASES3) )
 			return ACADOERRORTEXT(RET_INVALID_ARGUMENTS,
-					"For condensed solution only qpOASES QP solver is supported");
+					"For condensed solution only qpOASES and qpOASES3 QP solver are supported");
 
 		if ( (HessianApproximationMode)hessianApproximation == GAUSS_NEWTON ) {
 			solver = ExportNLPSolverPtr(
@@ -408,11 +559,31 @@ returnValue OCPexport::setup( )
 
 		break;
 
+	case BLOCK_CONDENSING_N2:
+
+		if ((QPSolverName)qpSolver != QP_QPDUNES && (QPSolverName)qpSolver != QP_FORCES)
+			return ACADOERRORTEXT(RET_INVALID_ARGUMENTS,
+					"For block condensed solution only qpDUNES QP solver is currently supported");
+
+		if ( (HessianApproximationMode)hessianApproximation == GAUSS_NEWTON && (QPSolverName)qpSolver == QP_QPDUNES ) {
+			solver = ExportNLPSolverPtr(
+					NLPSolverFactory::instance().createAlgorithm(this, commonHeaderName, GAUSS_NEWTON_BLOCK_QPDUNES));
+		}
+		else if ( (HessianApproximationMode)hessianApproximation == GAUSS_NEWTON && (QPSolverName)qpSolver == QP_FORCES ) {
+			solver = ExportNLPSolverPtr(
+					NLPSolverFactory::instance().createAlgorithm(this, commonHeaderName, GAUSS_NEWTON_BLOCK_FORCES));
+		}
+		else {
+			return ACADOERRORTEXT(RET_INVALID_ARGUMENTS, "Only Gauss-Newton methods are currently supported in combination with block condensing.");
+		}
+
+		break;
+
 	case FULL_CONDENSING_N2_FACTORIZATION:
 
-			if ((QPSolverName)qpSolver != QP_QPOASES)
+			if ( ((QPSolverName)qpSolver != QP_QPOASES) && ((QPSolverName)qpSolver != QP_QPOASES3) )
 				return ACADOERRORTEXT(RET_INVALID_ARGUMENTS,
-						"For condensed solution only qpOASES QP solver is supported");
+						"For condensed solution only qpOASES and qpOASES3 QP solver are supported");
 
 			solver = ExportNLPSolverPtr(
 					NLPSolverFactory::instance().createAlgorithm(this, commonHeaderName, GAUSS_NEWTON_CN2_FACTORIZATION));
@@ -420,9 +591,9 @@ returnValue OCPexport::setup( )
 			break;
 
 	case SPARSE_SOLVER:
-		if ((QPSolverName)qpSolver != QP_FORCES && (QPSolverName)qpSolver != QP_QPDUNES && (QPSolverName)qpSolver != QP_QPDUNES2 && (QPSolverName)qpSolver != QP_HPMPC)
+		if ((QPSolverName)qpSolver != QP_FORCES && (QPSolverName)qpSolver != QP_QPDUNES && (QPSolverName)qpSolver != QP_HPMPC && (QPSolverName)qpSolver != QP_GENERIC)
 			return ACADOERRORTEXT(RET_INVALID_ARGUMENTS,
-					"For sparse solution FORCES and qpDUNES QP solvers are supported");
+					"For sparse solution FORCES, qpDUNES and HPMPC QP solvers are supported");
 		if ( (QPSolverName)qpSolver == QP_FORCES)
 			solver = ExportNLPSolverPtr(
 					NLPSolverFactory::instance().createAlgorithm(this, commonHeaderName, GAUSS_NEWTON_FORCES));
@@ -436,12 +607,12 @@ returnValue OCPexport::setup( )
 					NLPSolverFactory::instance().createAlgorithm(this, commonHeaderName, GAUSS_NEWTON_QPDUNES));
 			}
 		}
-		else if ((QPSolverName)qpSolver == QP_QPDUNES2)
-			solver = ExportNLPSolverPtr(
-					NLPSolverFactory::instance().createAlgorithm(this, commonHeaderName, GAUSS_NEWTON_QPDUNES2));
 		else if ((QPSolverName)qpSolver == QP_HPMPC)
 			solver = ExportNLPSolverPtr(
 					NLPSolverFactory::instance().createAlgorithm(this, commonHeaderName, GAUSS_NEWTON_HPMPC));
+        else if ((QPSolverName)qpSolver == QP_GENERIC)
+            solver = ExportNLPSolverPtr(
+                    NLPSolverFactory::instance().createAlgorithm(this, commonHeaderName, GAUSS_NEWTON_GENERIC));
 		break;
 
 	default:
@@ -469,7 +640,10 @@ returnValue OCPexport::setup( )
 
 	solver->setLevenbergMarquardt( levenbergMarquardt );
 
-	solver->setup( );
+	returnValue statusSetup;
+	statusSetup = solver->setup( );
+	if (statusSetup != SUCCESSFUL_RETURN)
+		return ACADOERRORTEXT(status, "Error in setting up solver.");
 
 	setStatus( BS_READY );
 
@@ -496,9 +670,9 @@ returnValue OCPexport::checkConsistency( ) const
 	int sensitivityProp;
 	get(DYNAMIC_SENSITIVITY, sensitivityProp);
 
- 	if( (HessianApproximationMode)hessianApproximation == EXACT_HESSIAN && (ExportSensitivityType) sensitivityProp != THREE_SWEEPS ) {
- 		return ACADOERROR( RET_INVALID_OPTION );
- 	}
+// 	if( (HessianApproximationMode)hessianApproximation == EXACT_HESSIAN && (ExportSensitivityType) sensitivityProp != THREE_SWEEPS ) {
+// 		return ACADOERROR( RET_INVALID_OPTION );
+// 	}
 
  	DifferentialEquation f;
  	ocp.getModel( f );
@@ -559,8 +733,9 @@ returnValue OCPexport::exportAcadoHeader(	const std::string& _dirName,
 											int _precision
 											) const
 {
-	string moduleName;
+	string moduleName, modulePrefix;
 	get(CG_MODULE_NAME, moduleName);
+    get(CG_MODULE_PREFIX, modulePrefix);
 
 	int qpSolver;
 	get(QP_SOLVER, qpSolver);
@@ -578,32 +753,74 @@ returnValue OCPexport::exportAcadoHeader(	const std::string& _dirName,
 	int covCalc;
 	get(CG_COMPUTE_COVARIANCE_MATRIX, covCalc);
 
+	int linSolver;
+	get(LINEAR_ALGEBRA_SOLVER, linSolver);
+	bool useComplexArithmetic = false;
+
+	if( (LinearAlgebraSolver)linSolver == SIMPLIFIED_IRK_NEWTON ) useComplexArithmetic = true;
+
 	string fileName;
 	fileName = _dirName + "/" + _fileName;
 
 	map<string, pair<string, string> > options;
 
-	options[ "ACADO_N" ]   = make_pair(toString( ocp.getN() ),   "Number of control/estimation intervals.");
-	options[ "ACADO_NX" ]  = make_pair(toString( ocp.getNX() ),  "Number of differential variables.");
-	options[ "ACADO_NXD" ] = make_pair(toString( ocp.getNDX() ), "Number of differential derivative variables.");
-	options[ "ACADO_NXA" ] = make_pair(toString( ocp.getNXA() ), "Number of algebraic variables.");
-	options[ "ACADO_NU" ]  = make_pair(toString( ocp.getNU() ),  "Number of control variables.");
-	options[ "ACADO_NOD" ]  = make_pair(toString( ocp.getNOD() ),  "Number of online data values.");
-	options[ "ACADO_NY" ]  = make_pair(toString( solver->getNY() ),  "Number of references/measurements per node on the first N nodes.");
-	options[ "ACADO_NYN" ] = make_pair(toString( solver->getNYN() ), "Number of references/measurements on the last (N + 1)st node.");
+	options[ modulePrefix + "_N" ]   = make_pair(toString( ocp.getN() ),   "Number of control/estimation intervals.");
+	options[ modulePrefix + "_NX" ]  = make_pair(toString( ocp.getNX() ),  "Number of differential variables.");
+	options[ modulePrefix + "_NXD" ] = make_pair(toString( ocp.getNDX() ), "Number of differential derivative variables.");
+	options[ modulePrefix + "_NXA" ] = make_pair(toString( ocp.getNXA() ), "Number of algebraic variables.");
+	options[ modulePrefix + "_NU" ]  = make_pair(toString( ocp.getNU() ),  "Number of control variables.");
+	options[ modulePrefix + "_NOD" ]  = make_pair(toString( ocp.getNOD() ),  "Number of online data values.");
+	options[ modulePrefix + "_NY" ]  = make_pair(toString( solver->getNY() ),  "Number of references/measurements per node on the first N nodes.");
+	options[ modulePrefix + "_NYN" ] = make_pair(toString( solver->getNYN() ), "Number of references/measurements on the last (N + 1)st node.");
+    options[ modulePrefix + "_NPAC" ]  = make_pair(toString( solver->getNumPathConstraints() ),  "Number of path constraints.");
 
-	options[ "ACADO_INITIAL_STATE_FIXED" ] =
+	Grid integrationGrid;
+	ocp.getIntegrationGrid(integrationGrid);
+	uint NIS = integrationGrid.getNumIntervals();
+	if( ocp.hasEquidistantControlGrid() ) options[ modulePrefix + "_RK_NIS" ] = make_pair(toString( NIS ),   "Number of integration steps per shooting interval.");
+
+	RungeKuttaExport *rk_integrator = static_cast<RungeKuttaExport *>(integrator.get());  // Note: As long as only Runge-Kutta type methods are exported.
+	options[ modulePrefix + "_RK_NSTAGES" ] = make_pair(toString( rk_integrator->getNumStages() ),   "Number of Runge-Kutta stages per integration step.");
+
+	options[ modulePrefix + "_INITIAL_STATE_FIXED" ] =
 			make_pair(toString( fixInitialState ), "Indicator for fixed initial state.");
-	options[ "ACADO_WEIGHTING_MATRICES_TYPE" ] =
+	options[ modulePrefix + "_WEIGHTING_MATRICES_TYPE" ] =
 			make_pair(toString( (unsigned)solver->weightingMatricesType() ), "Indicator for type of fixed weighting matrices.");
-	options[ "ACADO_USE_LINEAR_TERMS" ] =
+	options[ modulePrefix + "_USE_LINEAR_TERMS" ] =
 				make_pair(toString( (unsigned)solver->usingLinearTerms() ), "Indicator for usage of non-hard-coded linear terms in the objective.");
-	options[ "ACADO_HARDCODED_CONSTRAINT_VALUES" ] =
+	options[ modulePrefix + "_HARDCODED_CONSTRAINT_VALUES" ] =
 			make_pair(toString( hardcodeConstraintValues ), "Flag indicating whether constraint values are hard-coded or not.");
-	options[ "ACADO_USE_ARRIVAL_COST" ] =
+	options[ modulePrefix + "_USE_ARRIVAL_COST" ] =
 			make_pair(toString( useAC ), "Providing interface for arrival cost.");
-	options[ "ACADO_COMPUTE_COVARIANCE_MATRIX" ] =
+	options[ modulePrefix + "_COMPUTE_COVARIANCE_MATRIX" ] =
 			make_pair(toString( covCalc ), "Compute covariance matrix of the last state estimate.");
+	options[ modulePrefix + "_QP_NV" ] =
+			make_pair(toString( solver->getNumQPvars() ), "Total number of QP optimization variables.");
+
+	int qpSolution;
+	get(SPARSE_QP_SOLUTION, qpSolution);
+	if( (QPSolverName)qpSolver == QP_FORCES && (SparseQPsolutionMethods)qpSolution != BLOCK_CONDENSING_N2 ) {
+		ExportGaussNewtonForces *blockSolver = static_cast<ExportGaussNewtonForces*>(solver.get());
+		options[ modulePrefix + "_QP_NLB" ] =
+				make_pair(toString( blockSolver->getNumLowerBounds() ), "Total number of QP lower bound values.");
+		options[ modulePrefix + "_QP_NUB" ] =
+				make_pair(toString( blockSolver->getNumUpperBounds() ), "Total number of QP upper bound values.");
+	}
+
+	// QPDunes block based condensing:
+	if ( (SparseQPsolutionMethods)qpSolution == BLOCK_CONDENSING_N2 ) {
+		ExportGaussNewtonBlockCN2 *blockSolver = static_cast<ExportGaussNewtonBlockCN2*>(solver.get());
+
+		options[ modulePrefix + "_BLOCK_CONDENSING" ] =
+				make_pair(toString( 1 ), "User defined block based condensing.");
+		options[ modulePrefix + "_QP_NCA" ] =
+				make_pair(toString( blockSolver->getNumStateBoundsPerBlock()*blockSolver->getNumberOfBlocks() ), "Total number of QP affine constraints.");
+	}
+	else {
+		options[ modulePrefix + "_BLOCK_CONDENSING" ] =
+						make_pair(toString( 0 ), "User defined block based condensing.");
+	}
+
 
 	//
 	// ACADO variables and workspace
@@ -630,7 +847,7 @@ returnValue OCPexport::exportAcadoHeader(	const std::string& _dirName,
 	functionsBlock.exportCode(functions, _realString);
 
 	ExportCommonHeader ech(fileName, "", _realString, _intString, _precision);
-	ech.configure( moduleName, useSinglePrecision, (QPSolverName)qpSolver,
+	ech.configure( moduleName, modulePrefix, useSinglePrecision, useComplexArithmetic, (QPSolverName)qpSolver,
 			options, variables.str(), workspace.str(), functions.str());
 
 	return ech.exportCode();

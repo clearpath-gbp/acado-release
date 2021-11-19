@@ -101,7 +101,7 @@ returnValue ThreeSweepsERKExport::setDifferentialEquation(	const Expression& rhs
 	uint numX = NX*(NX+1)/2.0;
 	uint numU = NU*(NU+1)/2.0;
 	uint numZ = (NX+NU)*(NX+NU+1)/2.0;
-	if( (ExportSensitivityType)sensGen == THREE_SWEEPS ) {
+	if( (ExportSensitivityType)sensGen == SYMMETRIC ) {
 		// SWEEP 1:
 		// ---------
 		f << rhs_;
@@ -132,16 +132,8 @@ returnValue ThreeSweepsERKExport::setDifferentialEquation(	const Expression& rhs
 
 		Expression dfS;
 		Expression h_tmp = symmetricDerivative( rhs_, arg, S_tmp, lx, &dfS );
-		Expression VDE_X;
-		Expression VDE_U;
-		for( uint i = 0; i < NX; i++ ) {
-			VDE_X.appendCols(dfS.getCol(i));
-		}
-		for( uint i = NX; i < NX+NU; i++ ) {
-			VDE_U.appendCols(dfS.getCol(i));
-		}
-		h << VDE_X;
-		h << VDE_U;
+		h << dfS.getCols(0,NX);
+		h << dfS.getCols(NX,NX+NU);
 		h << returnLowerTriangular( h_tmp );
 
 		// OLD VERSION:
@@ -177,7 +169,7 @@ returnValue ThreeSweepsERKExport::setup( )
 {
 	int sensGen;
 	get( DYNAMIC_SENSITIVITY,sensGen );
-	if ( (ExportSensitivityType)sensGen != THREE_SWEEPS ) ACADOERROR( RET_INVALID_OPTION );
+	if ( (ExportSensitivityType)sensGen != SYMMETRIC ) ACADOERROR( RET_INVALID_OPTION );
 
 	// NOT SUPPORTED: since the forward sweep needs to be saved
 	if( !equidistantControlGrid() ) 	ACADOERROR( RET_INVALID_OPTION );

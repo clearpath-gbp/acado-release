@@ -48,6 +48,9 @@ ExportGaussNewtonForces::ExportGaussNewtonForces(	UserInteraction* _userInteract
 	qpObjPrefix = "acadoForces";
 	qpModuleName = "forces";
 	diagH = diagHN = false;
+
+	numLB = 0;
+	numUB = 0;
 }
 
 returnValue ExportGaussNewtonForces::setup( )
@@ -56,6 +59,7 @@ returnValue ExportGaussNewtonForces::setup( )
 	setupInitialization();
 	// Add QP initialization call to the initialization
 	ExportFunction initializeForces( "initializeForces" );
+	initializeForces.setName( "initializeForces" );
 	initialize.addFunctionCall( initializeForces );
 
 	LOG( LVL_DEBUG ) << "done!" << endl;
@@ -138,6 +142,7 @@ returnValue ExportGaussNewtonForces::getCode(	ExportStatementBlock& code
 	code.addFunction( evaluateTerminalCost );
 	code.addFunction( setObjQ1Q2 );
 	code.addFunction( setObjR1R2 );
+	code.addFunction( setObjS1 );
 	code.addFunction( setObjQN1QN2 );
 	code.addFunction( setStageH );
 	code.addFunction( setStagef );
@@ -168,6 +173,16 @@ unsigned ExportGaussNewtonForces::getNumQPvars( ) const
 	return (N + 1) * NX + N * NU;
 }
 
+unsigned ExportGaussNewtonForces::getNumLowerBounds( ) const
+{
+	return numLB;
+}
+
+unsigned ExportGaussNewtonForces::getNumUpperBounds( ) const
+{
+	return numUB;
+}
+
 //
 // PROTECTED FUNCTIONS:
 //
@@ -180,10 +195,6 @@ returnValue ExportGaussNewtonForces::setupObjectiveEvaluation( void )
 	get(CG_USE_VARIABLE_WEIGHTING_MATRIX, variableObjS);
 	int forceDiagHessian;
 	get(CG_FORCE_DIAGONAL_HESSIAN, forceDiagHessian);
-
-	if (S1.isGiven() == false || S1.getGivenMatrix().isZero() == false)
-		ACADOWARNINGTEXT(RET_NOT_IMPLEMENTED_YET,
-				"Mixed control-state terms in the objective function are not supported at the moment.");
 
 	diagH = false;
 	diagHN = false;
@@ -393,6 +404,41 @@ returnValue ExportGaussNewtonForces::setupObjectiveEvaluation( void )
 		loopObjective.addLinebreak( );
 	}
 
+	indexX = getNY();
+	ExportArgument tmpFxCall = tmpFx;
+	if (tmpFx.isGiven() == false)
+	{
+		tmpFxCall = objValueOut.getAddress(0, indexX);
+		indexX += objEvFx.getDim();
+	}
+
+	ExportArgument tmpFuCall = tmpFu;
+	if (tmpFu.isGiven() == false)
+	{
+		tmpFuCall = objValueOut.getAddress(0, indexX);
+	}
+
+	ExportArgument objSCall = variableObjS == true ? objS.getAddress(runObj * NY, 0) : objS;
+	if (S1.isGiven() == false)
+	{
+		ExportVariable tmpS1;
+		ExportVariable tmpS2;
+
+		tmpS1.setup("tmpS1", NX, NU, REAL, ACADO_LOCAL);
+		tmpS2.setup("tmpS2", NX, NY, REAL, ACADO_LOCAL);
+
+		setObjS1.setup("setObjS1", tmpFx, tmpFu, tmpObjS, tmpS1);
+		setObjS1.addVariable( tmpS2 );
+		setObjS1.addStatement( tmpS2 == (tmpFx ^ tmpObjS) );
+		setObjS1.addStatement( tmpS1 == tmpS2 * tmpFu );
+
+		loopObjective.addFunctionCall(
+				setObjS1,
+				tmpFxCall, tmpFuCall, objSCall,
+				S1.getAddress(runObj * NX, 0)
+		);
+	}
+
 	evaluateObjective.addStatement( loopObjective );
 
 	//
@@ -502,8 +548,30 @@ returnValue ExportGaussNewtonForces::setupObjectiveEvaluation( void )
 			);
 		}
 	}
+	setStageH.addLinebreak();
 
-	if (Q1.isGiven() == true && R1.isGiven() == true)
+	if (diagH == false) {
+		if (S1.isGiven() == false)
+		{
+			setStageH.addStatement(
+					stageH.getSubMatrix(0, NX, NX, NX + NU) == S1.getSubMatrix(index * NX, (index + 1) * NX, 0, NU)
+			);
+			setStageH.addStatement(
+					stageH.getSubMatrix(NX, NX + NU, 0, NX) == S1.getSubMatrix(index * NX, (index + 1) * NX, 0, NU).getTranspose()
+			);
+		}
+		else if(S1.getGivenMatrix().isZero() == false)
+		{
+			setStageH.addStatement(
+					stageH.getSubMatrix(0, NX, NX, NX + NU) == S1
+			);
+			setStageH.addStatement(
+					stageH.getSubMatrix(NX, NX + NU, 0, NX) == S1.getTranspose()
+			);
+		}
+	}
+
+	if (Q1.isGiven() == true && R1.isGiven() == true && S1.isGiven() == true)
 	{
 		initialize <<
 				setStageH.getName() << "( " << objHessians[ 0 ].getFullName() << ", " << "0" << " );\n";
@@ -528,7 +596,7 @@ returnValue ExportGaussNewtonForces::setupObjectiveEvaluation( void )
 		evaluateObjective.addLinebreak();
 		if (diagHN == false)
 			evaluateObjective.addStatement(
-				objHessians[ N ] == QN1 + evLmX
+					objHessians[ N ] == QN1 + evLmX
 			);
 		else
 			for (unsigned el = 0; el < NX; ++el)
@@ -596,6 +664,9 @@ returnValue ExportGaussNewtonForces::setupConstraintsEvaluation( void )
 	conUBIndices.clear();
 	conUBIndices.resize(N + 1);
 
+	conABDimensions.clear();
+	conABDimensions.resize(N + 1);
+
 	conLBValues.clear();
 	conLBValues.resize(N + 1);
 
@@ -607,8 +678,6 @@ returnValue ExportGaussNewtonForces::setupConstraintsEvaluation( void )
 	//
 	// Stack state constraints
 	//
-	unsigned numLB = 0;
-	unsigned numUB = 0;
 	for (unsigned i = 0; i < xBounds.getNumPoints(); ++i)
 	{
 		lbTmp = xBounds.getLowerBounds( i );
@@ -739,12 +808,12 @@ returnValue ExportGaussNewtonForces::setupConstraintsEvaluation( void )
 	conC.resize( N );
 
 	// XXX FORCES works with column major format
-//	if (initialStateFixed() == true)
-//		conC[ 0 ].setup("C1", NX + NU, 2 * NX, REAL, FORCES_PARAMS, false, qpObjPrefix);
-//	else
-//		conC[ 0 ].setup("C1", NX + NU, NX, REAL, FORCES_PARAMS, false, qpObjPrefix);
+	//	if (initialStateFixed() == true)
+	//		conC[ 0 ].setup("C1", NX + NU, 2 * NX, REAL, FORCES_PARAMS, false, qpObjPrefix);
+	//	else
+	//		conC[ 0 ].setup("C1", NX + NU, NX, REAL, FORCES_PARAMS, false, qpObjPrefix);
 
-//	for (unsigned i = 1; i < N; ++i)
+	//	for (unsigned i = 1; i < N; ++i)
 	for (unsigned i = 0; i < N; ++i)
 		conC[ i ].setup(string("C") + toString(i + 1), NX + NU, NX, REAL, FORCES_PARAMS, false, qpObjPrefix);
 
@@ -762,21 +831,21 @@ returnValue ExportGaussNewtonForces::setupConstraintsEvaluation( void )
 					evGu.getSubMatrix(index * NX, (index + 1) * NX, 0, NU).getTranspose()
 	);
 
-//	if (initialStateFixed() == true)
-//	{
-//		initialize.addStatement(
-//				conC[ 0 ].getSubMatrix(0, NX, 0, NX) == eye( NX )
-//		);
-//		evaluateConstraints.addLinebreak();
-//		evaluateConstraints.addStatement(
-//				conC[ 0 ].getSubMatrix(0, NX, NX, 2 * NX) == evGx.getSubMatrix(0, NX, 0, NX).getTranspose()
-//		);
-//		evaluateConstraints.addLinebreak();
-//		evaluateConstraints.addStatement(
-//				conC[ 0 ].getSubMatrix(NX, NX + NU, NX, 2 * NX) == evGu.getSubMatrix(0, NX, 0, NU).getTranspose()
-//		);
-//		evaluateConstraints.addLinebreak();
-//	}
+	//	if (initialStateFixed() == true)
+	//	{
+	//		initialize.addStatement(
+	//				conC[ 0 ].getSubMatrix(0, NX, 0, NX) == eye( NX )
+	//		);
+	//		evaluateConstraints.addLinebreak();
+	//		evaluateConstraints.addStatement(
+	//				conC[ 0 ].getSubMatrix(0, NX, NX, 2 * NX) == evGx.getSubMatrix(0, NX, 0, NX).getTranspose()
+	//		);
+	//		evaluateConstraints.addLinebreak();
+	//		evaluateConstraints.addStatement(
+	//				conC[ 0 ].getSubMatrix(NX, NX + NU, NX, 2 * NX) == evGu.getSubMatrix(0, NX, 0, NU).getTranspose()
+	//		);
+	//		evaluateConstraints.addLinebreak();
+	//	}
 
 	unsigned start = 0; //initialStateFixed() == true ? 1 : 0;
 	for (unsigned i = start; i < N; ++i)
@@ -788,10 +857,10 @@ returnValue ExportGaussNewtonForces::setupConstraintsEvaluation( void )
 	unsigned dNum = initialStateFixed() == true ? N + 1 : N;
 	cond.resize(dNum);
 
-//	if (initialStateFixed() == true)
-//		cond[ 0 ].setup("d1", 2 * NX, 1, REAL, FORCES_PARAMS, false, qpObjPrefix);
-//	else
-//		cond[ 0 ].setup("d1", NX, 1, REAL, FORCES_PARAMS, false, qpObjPrefix);
+	//	if (initialStateFixed() == true)
+	//		cond[ 0 ].setup("d1", 2 * NX, 1, REAL, FORCES_PARAMS, false, qpObjPrefix);
+	//	else
+	//		cond[ 0 ].setup("d1", NX, 1, REAL, FORCES_PARAMS, false, qpObjPrefix);
 
 	for (unsigned i = 0; i < dNum; ++i)
 		cond[ i ].setup(string("d") + toString(i + 1), NX, 1, REAL, FORCES_PARAMS, false, qpObjPrefix);
@@ -805,16 +874,23 @@ returnValue ExportGaussNewtonForces::setupConstraintsEvaluation( void )
 		stagedNew == zeros<double>(NX, 1) - d.getRows(index * NX, (index + 1) * NX)
 	);
 
-//		evaluateConstraints.addStatement(
-//				cond[ 0 ].getRows(NX, 2 * NX) == dummyZero - d.getRows(0, NX)
-//		);
-//		evaluateConstraints.addLinebreak();
+	//		evaluateConstraints.addStatement(
+	//				cond[ 0 ].getRows(NX, 2 * NX) == dummyZero - d.getRows(0, NX)
+	//		);
+	//		evaluateConstraints.addLinebreak();
 
-	start = initialStateFixed() == true ? 1 : 0;
-	for (unsigned i = start; i < dNum; ++i)
-		evaluateConstraints.addFunctionCall(
-				conSetd, cond[ i ], ExportIndex(i - 1)
-		);
+	if( initialStateFixed() ) {
+		for (unsigned i = 1; i < dNum; ++i)
+			evaluateConstraints.addFunctionCall(
+					conSetd, cond[ i ], ExportIndex(i - 1)
+			);
+	}
+	else {
+		for (unsigned i = 0; i < dNum; ++i)
+			evaluateConstraints.addFunctionCall(
+					conSetd, cond[ i ], ExportIndex(i)
+			);
+	}
 
 	return SUCCESSFUL_RETURN;
 }
@@ -867,7 +943,7 @@ returnValue ExportGaussNewtonForces::setupEvaluation( )
 	feedback.setReturnValue( returnValueFeedbackPhase );
 
 	feedback.addStatement(
-//			cond[ 0 ].getRows(0, NX) == x0 - x.getRow( 0 ).getTranspose()
+			//			cond[ 0 ].getRows(0, NX) == x0 - x.getRow( 0 ).getTranspose()
 			cond[ 0 ] == x0 - x.getRow( 0 ).getTranspose()
 	);
 	feedback.addLinebreak();
@@ -919,17 +995,17 @@ returnValue ExportGaussNewtonForces::setupEvaluation( )
 		//
 		// 1) Just use the old solution
 		//
-//		for (unsigned blk = 0; blk < N + 1; blk++)
-//			feedback.addStatement(zInit[ blk ] == vecQPVars[ blk ] );
+		//		for (unsigned blk = 0; blk < N + 1; blk++)
+		//			feedback.addStatement(zInit[ blk ] == vecQPVars[ blk ] );
 
 		//
 		// 2) Initialization by shifting
 		//
 
-//		for (unsigned blk = 0; blk < N - 1; blk++)
-//			feedback.addStatement( zInit[ blk ] == vecQPVars[blk + 1] );
-//		for (unsigned el = 0; el < NX; el++)
-//			feedback.addStatement( zInit[N - 1].getElement(el, 0) == vecQPVars[ N ].getElement(el, 0) );
+		//		for (unsigned blk = 0; blk < N - 1; blk++)
+		//			feedback.addStatement( zInit[ blk ] == vecQPVars[blk + 1] );
+		//		for (unsigned el = 0; el < NX; el++)
+		//			feedback.addStatement( zInit[N - 1].getElement(el, 0) == vecQPVars[ N ].getElement(el, 0) );
 	}
 
 	//
@@ -940,13 +1016,14 @@ returnValue ExportGaussNewtonForces::setupEvaluation( )
 	//
 	ExportFunction solveQP;
 	solveQP.setup("solve");
+	solveQP.setName( "solve" );
 
 	feedback
-		<< returnValueFeedbackPhase.getFullName() << " = "
-		<< qpModuleName << "_" << solveQP.getName() << "( "
-		<< "&" << qpObjPrefix << "_" << "params" << ", "
-		<< "&" << qpObjPrefix << "_" << "output" << ", "
-		<< "&" << qpObjPrefix << "_" << "info" << " );\n";
+	<< returnValueFeedbackPhase.getFullName() << " = "
+	<< qpModuleName << "_" << solveQP.getName() << "( "
+	<< "&" << qpObjPrefix << "_" << "params" << ", "
+	<< "&" << qpObjPrefix << "_" << "output" << ", "
+	<< "&" << qpObjPrefix << "_" << "info" << " , NULL);\n";
 	feedback.addLinebreak();
 
 	//
@@ -978,7 +1055,7 @@ returnValue ExportGaussNewtonForces::setupEvaluation( )
 
 	getKKT.setup( "getKKT" );
 	getKKT.doc( "Get the KKT tolerance of the current iterate. Under development." );
-//	kkt.setDoc( "The KKT tolerance value." );
+	//	kkt.setDoc( "The KKT tolerance value." );
 	kkt.setDoc( "1e-15." );
 	getKKT.setReturnValue( kkt );
 
@@ -993,7 +1070,7 @@ returnValue ExportGaussNewtonForces::setupQPInterface( )
 	// Configure and export QP interface
 	//
 
-	qpInterface = std::tr1::shared_ptr< ExportForcesInterface >(new ExportForcesInterface(FORCES_TEMPLATE, "", commonHeaderName));
+	qpInterface = std::shared_ptr< ExportForcesInterface >(new ExportForcesInterface(FORCES_TEMPLATE, "", commonHeaderName));
 
 	ExportVariable tmp1("tmp", 1, 1, REAL, FORCES_PARAMS, false, qpObjPrefix);
 	ExportVariable tmp2("tmp", 1, 1, REAL, FORCES_OUTPUT, false, qpObjPrefix);
@@ -1028,7 +1105,7 @@ returnValue ExportGaussNewtonForces::setupQPInterface( )
 	get(CG_EXPORT_FOLDER_NAME, folderName);
 	string outFile = folderName + "/acado_forces_generator.m";
 
-	qpGenerator = std::tr1::shared_ptr< ExportForcesGenerator >(new ExportForcesGenerator(FORCES_GENERATOR, outFile, "", "real_t", "int", 16, "%"));
+	qpGenerator = std::shared_ptr< ExportForcesGenerator >(new ExportForcesGenerator(FORCES_GENERATOR, outFile, "", "real_t", "int", 16, "%"));
 
 	int maxNumQPiterations;
 	get( MAX_NUM_QP_ITERATIONS,maxNumQPiterations );
@@ -1052,6 +1129,7 @@ returnValue ExportGaussNewtonForces::setupQPInterface( )
 			N,
 			conLBIndices,
 			conUBIndices,
+			conABDimensions,
 			(Q1.isGiven() == true && R1.isGiven() == true) ? 1 : 0,
 			diagH,
 			diagHN,
@@ -1072,7 +1150,7 @@ returnValue ExportGaussNewtonForces::setupQPInterface( )
 
 	outFile = folderName + "/acado_forces_generator.py";
 
-	qpGenerator = std::tr1::shared_ptr< ExportForcesGenerator >(new ExportForcesGenerator(FORCES_GENERATOR_PYTHON, outFile, "", "real_t", "int", 16, "#"));
+	qpGenerator = std::shared_ptr< ExportForcesGenerator >(new ExportForcesGenerator(FORCES_GENERATOR_PYTHON, outFile, "", "real_t", "int", 16, "#"));
 
 	qpGenerator->configure(
 			NX,
@@ -1080,6 +1158,7 @@ returnValue ExportGaussNewtonForces::setupQPInterface( )
 			N,
 			conLBIndices,
 			conUBIndices,
+			conABDimensions,
 			(Q1.isGiven() == true && R1.isGiven() == true) ? 1 : 0, // TODO Remove this one
 			diagH,
 			diagHN,

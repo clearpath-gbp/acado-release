@@ -195,8 +195,8 @@ returnValue DiagonallyImplicitRKExport::solveImplicitSystem( ExportStatementBloc
 		// Initialization iterations:
 		ExportForLoop loop11( index2,0,numStages );
 		ExportForLoop loop1( index1,0,numItsInit+1 ); // NOTE: +1 because 0 will lead to NaNs, so the minimum number of iterations is 1 at the initialization
-		evaluateMatrix( &loop1, index2, index3, tmp_index, Ah, C, true, DERIVATIVES );
-		loop1.addStatement( det.getFullName() + " = " + solver->getNameSolveFunction() + "( &" + rk_A.get(index2*(NX2+NXA),0) + ", " + rk_b.getFullName() + ", &" + rk_auxSolver.get(index2,0) + " );\n" );
+		evaluateMatrix( &loop1, index2, index3, tmp_index, rk_A, Ah, C, true, DERIVATIVES );
+		loop1.addStatement( det.getFullName() + " = " + ExportStatement::fcnPrefix + "_" + solver->getNameSolveFunction() + "( &" + rk_A.get(index2*(NX2+NXA),0) + ", " + rk_b.getFullName() + ", &" + rk_auxSolver.get(index2,0) + " );\n" );
 		loop1.addStatement( rk_kkk.getSubMatrix( NX1,NX1+NX2,index2,index2+1 ) += rk_b.getRows( 0,NX2 ) );													// differential states
 		if(NXA > 0) loop1.addStatement( rk_kkk.getSubMatrix( NX,NX+NXA,index2,index2+1 ) += rk_b.getRows( NX2,NX2+NXA ) );		// algebraic states
 		loop11.addStatement( loop1 );
@@ -217,7 +217,7 @@ returnValue DiagonallyImplicitRKExport::solveImplicitSystem( ExportStatementBloc
 		if( DERIVATIVES ) {
 			// solution calculated --> evaluate and save the necessary derivatives in rk_diffsTemp and update the matrix rk_A:
 			ExportForLoop loop3( index2,0,numStages );
-			evaluateMatrix( &loop3, index2, index3, tmp_index, Ah, C, false, DERIVATIVES );
+			evaluateMatrix( &loop3, index2, index3, tmp_index, rk_A, Ah, C, false, DERIVATIVES );
 			block->addStatement( loop3 );
 		}
 
@@ -285,7 +285,7 @@ returnValue DiagonallyImplicitRKExport::sensitivitiesImplicitSystem( ExportState
 		loop1.addStatement( loop11 );
 		if( STATES && (number == 1 || NX1 == 0) ) {
 			loop1.addStatement( std::string( "if( 0 == " ) + index1.getName() + " ) {\n" );	// factorization of the new matrix rk_A not yet calculated!
-			loop1.addStatement( det.getFullName() + " = " + solver->getNameSolveFunction() + "( &" + rk_A.get(index2*(NX2+NXA),0) + ", " + rk_b.getFullName() + ", &" + rk_auxSolver.get(index2,0) + " );\n" );
+			loop1.addStatement( det.getFullName() + " = " + ExportStatement::fcnPrefix + "_" + solver->getNameSolveFunction() + "( &" + rk_A.get(index2*(NX2+NXA),0) + ", " + rk_b.getFullName() + ", &" + rk_auxSolver.get(index2,0) + " );\n" );
 			loop1.addStatement( std::string( "}\n else {\n" ) );
 		}
 		loop1.addFunctionCall( solver->getNameSolveReuseFunction(),rk_A.getAddress(index2*(NX2+NXA),0),rk_b.getAddress(0,0),rk_auxSolver.getAddress(index2,0) );
@@ -316,7 +316,7 @@ returnValue DiagonallyImplicitRKExport::sensitivitiesImplicitSystem( ExportState
 }
 
 
-returnValue DiagonallyImplicitRKExport::evaluateMatrix( ExportStatementBlock* block, const ExportIndex& index1, const ExportIndex& index2, const ExportIndex& tmp_index, const ExportVariable& Ah, const ExportVariable& C, bool evaluateB, bool DERIVATIVES )
+returnValue DiagonallyImplicitRKExport::evaluateMatrix( ExportStatementBlock* block, const ExportIndex& index1, const ExportIndex& index2, const ExportIndex& tmp_index, const ExportVariable& _rk_A, const ExportVariable& Ah, const ExportVariable& C, bool evaluateB, bool DERIVATIVES )
 {
 	evaluateStatesImplicitSystem( block, Ah, C, index1, index2, tmp_index );
 
@@ -327,16 +327,16 @@ returnValue DiagonallyImplicitRKExport::evaluateMatrix( ExportStatementBlock* bl
 	ExportForLoop loop2( index2,0,NX2+NXA );
 	loop2.addStatement( tmp_index == index1*(NX2+NXA)+index2 );
 	if( NDX2 == 0 ) {
-		loop2.addStatement( rk_A.getSubMatrix( tmp_index,tmp_index+1,0,NX2 ) == Ah.getElement( 0,0 )*rk_diffsTemp2.getSubMatrix( indexDiffs,indexDiffs+1,index2*(NVARS2)+NX1,index2*(NVARS2)+NX1+NX2 ) );
-		loop2.addStatement( rk_A.getElement( tmp_index,index2 ) -= 1 );
+		loop2.addStatement( _rk_A.getSubMatrix( tmp_index,tmp_index+1,0,NX2 ) == Ah.getElement( 0,0 )*rk_diffsTemp2.getSubMatrix( indexDiffs,indexDiffs+1,index2*(NVARS2)+NX1,index2*(NVARS2)+NX1+NX2 ) );
+		loop2.addStatement( _rk_A.getElement( tmp_index,index2 ) -= 1 );
 	}
 	else {
-		loop2.addStatement( rk_A.getSubMatrix( tmp_index,tmp_index+1,0,NX2 ) == Ah.getElement( 0,0 )*rk_diffsTemp2.getSubMatrix( indexDiffs,indexDiffs+1,index2*(NVARS2)+NX1,index2*(NVARS2)+NX1+NX2 ) );
-		loop2.addStatement( rk_A.getSubMatrix( tmp_index,tmp_index+1,0,NX2 ) += rk_diffsTemp2.getSubMatrix( indexDiffs,indexDiffs+1,index2*(NVARS2)+NVARS2-NX2,index2*(NVARS2)+NVARS2 ) );
+		loop2.addStatement( _rk_A.getSubMatrix( tmp_index,tmp_index+1,0,NX2 ) == Ah.getElement( 0,0 )*rk_diffsTemp2.getSubMatrix( indexDiffs,indexDiffs+1,index2*(NVARS2)+NX1,index2*(NVARS2)+NX1+NX2 ) );
+		loop2.addStatement( _rk_A.getSubMatrix( tmp_index,tmp_index+1,0,NX2 ) += rk_diffsTemp2.getSubMatrix( indexDiffs,indexDiffs+1,index2*(NVARS2)+NVARS2-NX2,index2*(NVARS2)+NVARS2 ) );
 	}
 	if( NXA > 0 ) {
 		DMatrix zeroM = zeros<double>( 1,NXA );
-		loop2.addStatement( rk_A.getSubMatrix( tmp_index,tmp_index+1,NX2,NX2+NXA ) == rk_diffsTemp2.getSubMatrix( indexDiffs,indexDiffs+1,index2*(NVARS2)+NX1+NX2,index2*(NVARS2)+NX1+NX2+NXA ) );
+		loop2.addStatement( _rk_A.getSubMatrix( tmp_index,tmp_index+1,NX2,NX2+NXA ) == rk_diffsTemp2.getSubMatrix( indexDiffs,indexDiffs+1,index2*(NVARS2)+NX1+NX2,index2*(NVARS2)+NX1+NX2+NXA ) );
 	}
 	block->addStatement( loop2 );
 	if( evaluateB ) {

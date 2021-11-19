@@ -37,7 +37,7 @@ PROJECT( ACADO CXX C )
 #
 SET( ACADO_VERSION_MAJOR  1 )
 SET( ACADO_VERSION_MINOR  2 )
-SET( ACADO_VERSION_PATCH  1 )
+SET( ACADO_VERSION_PATCH  2 )
 SET( ACADO_VERSION_STRING
 		${ACADO_VERSION_MAJOR}.${ACADO_VERSION_MINOR}.${ACADO_VERSION_PATCH}beta
 )
@@ -179,7 +179,7 @@ INCLUDE_DIRECTORIES(
 	${PROJECT_SOURCE_DIR}
 	${PROJECT_SOURCE_DIR}/acado
 	${PROJECT_SOURCE_DIR}/external_packages
-	${PROJECT_SOURCE_DIR}/external_packages/qpOASES-3.0beta/include
+	${PROJECT_SOURCE_DIR}/external_packages/qpOASES-3.2.0/include
 	${PROJECT_BINARY_DIR}
 )
 
@@ -201,7 +201,7 @@ IF (NOT ACADO_BUILD_CGT_ONLY)
 	#
 	# Build qpOASES library
 	#
-	ADD_SUBDIRECTORY( ./external_packages/qpOASES-3.0beta )
+	ADD_SUBDIRECTORY( ./external_packages/qpOASES-3.2.0 )
 	
 	#
 	# Build csparse library
@@ -250,6 +250,7 @@ INSTALL(
 		${INSTALL_INCLUDE_DIR}
 	FILES_MATCHING PATTERN "*.ipp"
 )
+install(FILES package.xml DESTINATION share/acado)
 
 #
 # Install Eigen3
@@ -378,7 +379,7 @@ SET( ACADO_INCLUDE_DIRS
 	${PROJECT_SOURCE_DIR}
 	${PROJECT_SOURCE_DIR}/acado
 	${PROJECT_SOURCE_DIR}/external_packages
-	${PROJECT_SOURCE_DIR}/external_packages/qpOASES-3.0beta/include
+	${PROJECT_SOURCE_DIR}/external_packages/qpOASES-3.2.0/include
 	${PROJECT_BINARY_DIR}
 )
 
