@@ -1,0 +1,12 @@
+Source: ros-noetic-acado
+Section: misc
+Priority: extra
+Maintainer: Ronald Ensing <r.m.ensing@tudelft.nl>
+Build-Depends: debhelper (>= 9.0.0), cmake, libboost-all-dev
+Homepage: http://acado.github.io/
+Standards-Version: 3.9.2
+
+Package: ros-noetic-acado
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, libboost-all-dev, ros-noetic-catkin
+Description: ACADO Toolkit
